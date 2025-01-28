@@ -33,18 +33,31 @@ class SearchManager:
             with DDGS() as ddgs:
                 logger.info(f"Performing search for query: {query}")
 
-                # Perform the search with basic parameters
-                raw_results = list(ddgs.text(
-                    keywords=query,
-                    region='wt-wt',
-                    safesearch='off',
-                    timelimit='y'  # Past year
-                ))
+                # Try with web search first
+                raw_results = []
+                try:
+                    # Use a generator to get results
+                    for r in ddgs.text(
+                        keywords=query,
+                        region='wt-wt',
+                        safesearch='off',
+                        timelimit='y'  # Past year
+                    ):
+                        raw_results.append(r)
+                        if len(raw_results) >= max_results:
+                            break
 
-                logger.info(f"Raw results received: {len(raw_results)}")
+                    logger.info(f"Raw results received: {len(raw_results)}")
+                except Exception as e:
+                    logger.error(f"Error during search: {str(e)}")
+                    return []
 
                 # Update last request time
                 self.last_request_time = time.time()
+
+                if not raw_results:
+                    logger.warning("No results found")
+                    return []
 
                 formatted_results = []
                 for result in raw_results:
