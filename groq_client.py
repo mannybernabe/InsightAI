@@ -2,6 +2,7 @@ import os
 import time
 from openai import OpenAI
 from typing import List, Dict
+from duckduckgo_search import DDGS
 from utils import handle_rate_limit
 
 class GroqClient:
@@ -19,35 +20,62 @@ class GroqClient:
             raise ValueError(f"Failed to initialize Groq client. Please verify your API key. Error: {str(e)}")
 
         self.model = "mixtral-8x7b-32768"
+        self.ddgs = DDGS()
+
+    def web_search(self, query: str, num_results: int = 3) -> List[Dict]:
+        """Perform a web search using DuckDuckGo."""
+        try:
+            results = list(self.ddgs.text(query, max_results=num_results))
+            return [
+                {
+                    'title': result['title'],
+                    'link': result['link'],
+                    'snippet': result['body']
+                }
+                for result in results
+            ]
+        except Exception as e:
+            print(f"Web search error: {str(e)}")
+            return []
 
     @handle_rate_limit
     def generate_response(self, messages: List[Dict]) -> str:
         """Generates a response using the Groq API."""
         try:
-            # Convert messages to the format expected by Groq API
-            formatted_messages = []
+            # Check if this is a web search request
+            last_message = messages[-1]["content"].lower().strip()
+            if last_message.startswith("!search "):
+                search_query = last_message[8:].strip()
+                search_results = self.web_search(search_query)
 
-            # Add system message if not present
+                if not search_results:
+                    return "I couldn't find any relevant web search results for your query."
+
+                # Format search results
+                results_text = "Here are the search results:\n\n"
+                for i, result in enumerate(search_results, 1):
+                    results_text += f"{i}. {result['title']}\n"
+                    results_text += f"   {result['snippet']}\n"
+                    results_text += f"   Link: {result['link']}\n\n"
+
+                return results_text
+
+            # Regular chat response
+            formatted_messages = []
             if not any(msg["role"] == "system" for msg in messages):
                 formatted_messages.append({
                     "role": "system",
-                    "content": "You are a helpful AI assistant."
+                    "content": "You are a helpful AI assistant. You can also perform web searches using the '!search' command."
                 })
 
-            # Add the rest of the messages
-            for msg in messages:
-                formatted_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
+            formatted_messages.extend(messages)
 
-            # Make the API call
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=formatted_messages,
                 temperature=0.7,
                 max_tokens=1000,
-                stream=False  # Changed to False for simpler handling
+                stream=False
             )
 
             if not response.choices:
@@ -57,7 +85,7 @@ class GroqClient:
 
         except Exception as e:
             error_msg = f"Error generating response: {str(e)}"
-            print(error_msg)  # Log the error
+            print(error_msg)
             raise Exception(error_msg)
 
     @handle_rate_limit
@@ -88,5 +116,5 @@ class GroqClient:
 
         except Exception as e:
             error_msg = f"Error processing search: {str(e)}"
-            print(error_msg)  # Log the error
+            print(error_msg)
             raise Exception(error_msg)
