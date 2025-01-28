@@ -22,28 +22,52 @@ class GroqClient:
         self.model = "mixtral-8x7b-32768"
         self.ddgs = DDGS()
 
-    def web_search(self, query: str, num_results: int = 3) -> List[Dict]:
-        """Perform a web search using DuckDuckGo."""
+    def web_search(self, query: str, num_results: int = 3, timeout: int = 10) -> List[Dict]:
+        """Perform a web search using DuckDuckGo with timeout and retries."""
         try:
             print(f"Performing web search for query: {query}")
             results = []
-            for r in self.ddgs.text(query, max_results=num_results):
-                print(f"Found result: {r}")
-                if r and isinstance(r, dict):
-                    # Extract the fields we need, with fallbacks
-                    title = r.get('title', 'No title available')
-                    link = r.get('link', '')
-                    body = r.get('body', r.get('snippet', 'No description available'))
+            retries = 3
 
-                    if link:  # Only add if we at least have a valid link
-                        results.append({
-                            'title': title,
-                            'link': link,
-                            'snippet': body
-                        })
+            while retries > 0:
+                try:
+                    search_results = list(self.ddgs.text(
+                        query, 
+                        max_results=num_results,
+                        timeout=timeout
+                    ))
+
+                    for r in search_results:
+                        print(f"Processing search result: {r}")
+                        if isinstance(r, dict):
+                            # Extract and validate fields
+                            title = r.get('title', '').strip()
+                            link = r.get('link', '').strip()
+                            body = r.get('body', r.get('snippet', '')).strip()
+
+                            if title and link and body:
+                                results.append({
+                                    'title': title,
+                                    'link': link,
+                                    'snippet': body
+                                })
+
+                    if results:
+                        break
+
+                    retries -= 1
+                    if retries > 0:
+                        time.sleep(1)  # Wait before retry
+
+                except Exception as search_error:
+                    print(f"Search attempt error: {search_error}")
+                    retries -= 1
+                    if retries > 0:
+                        time.sleep(1)
+                    continue
 
             if not results:
-                print("No results found from DuckDuckGo search")
+                print("No results found from DuckDuckGo search after all retries")
             return results
 
         except Exception as e:
@@ -66,7 +90,7 @@ class GroqClient:
                 search_results = self.web_search(search_query)
 
                 if not search_results:
-                    return "I couldn't find any relevant web search results. Please try a different search query or rephrase your search terms."
+                    return "No search results found. Please try:\n1. A different search query\n2. More specific terms\n3. Checking your internet connection"
 
                 # Format search results
                 results_text = "Here are the search results:\n\n"
@@ -82,7 +106,11 @@ class GroqClient:
             if not any(msg["role"] == "system" for msg in messages):
                 formatted_messages.append({
                     "role": "system",
-                    "content": "You are a helpful AI assistant. You can also perform web searches using the '!search' command followed by your query (e.g. '!search python programming')."
+                    "content": (
+                        "You are a helpful AI assistant. To search the web, use the '!search' "
+                        "command followed by your query (e.g. '!search latest AI developments' "
+                        "or '!search python programming tutorials')."
+                    )
                 })
 
             formatted_messages.extend(messages)
