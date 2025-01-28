@@ -94,48 +94,58 @@ class ChatInterface:
                     # Create containers
                     typing_placeholder = st.empty()
                     thinking_container = st.container()
-                    response_container = st.container()
+                    response_container = st.empty()
+
+                    typing_placeholder.markdown("🤔 Thinking...")
 
                     # Initialize the stream
-                    typing_placeholder.markdown("🤔 Thinking...")
                     response_stream = self.groq_client.generate_reasoning_stream(messages)
 
                     # Process the stream
                     full_response = ""
+                    current_response = ""
                     current_thinking = ""
                     in_think_tag = False
+                    buffer = ""
 
                     for chunk in response_stream:
                         if not chunk.choices[0].delta.content:
                             continue
 
                         content = chunk.choices[0].delta.content
+                        buffer += content
                         full_response += content
 
-                        # Check for think tags
-                        if "<think>" in content:
-                            in_think_tag = True
-                            with thinking_container:
-                                st.markdown("### 🧠 Reasoning Process")
-                                st.write("---")
-                        elif "</think>" in content:
-                            in_think_tag = False
-                            with thinking_container:
-                                st.markdown(current_thinking)
-                                st.write("---")
-                        elif in_think_tag:
-                            current_thinking += content
-                            with thinking_container:
-                                st.markdown(current_thinking + "▌")
-                        else:
-                            # Regular response content
-                            clean_response, _ = self.extract_think_tags(full_response)
-                            if clean_response.strip():
-                                with response_container:
-                                    st.markdown(
-                                        self.format_message_with_citations(clean_response) + "▌",
-                                        unsafe_allow_html=True
-                                    )
+                        # Process complete words/phrases
+                        if " " in buffer or "." in buffer or "\n" in buffer:
+                            if "<think>" in buffer:
+                                in_think_tag = True
+                                with thinking_container:
+                                    st.markdown("### 🧠 Reasoning Process")
+                                    st.write("---")
+                            elif "</think>" in buffer:
+                                in_think_tag = False
+                                with thinking_container:
+                                    st.markdown(current_thinking)
+                                    st.write("---")
+                            elif in_think_tag:
+                                current_thinking += buffer
+                                with thinking_container:
+                                    st.markdown("""
+                                        <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 5px;'>
+                                            {}\n▌
+                                        </div>
+                                    """.format(current_thinking), unsafe_allow_html=True)
+                            else:
+                                # Regular response content
+                                clean_response, _ = self.extract_think_tags(full_response)
+                                if clean_response.strip():
+                                    with response_container:
+                                        st.markdown(
+                                            self.format_message_with_citations(clean_response + "▌"),
+                                            unsafe_allow_html=True
+                                        )
+                            buffer = ""
 
                     # Final update
                     typing_placeholder.empty()
@@ -145,7 +155,11 @@ class ChatInterface:
                     if final_thinking:
                         with thinking_container:
                             st.markdown("### 🧠 Reasoning Process")
-                            st.markdown(final_thinking)
+                            st.markdown("""
+                                <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 5px;'>
+                                    {}
+                                </div>
+                            """.format(final_thinking), unsafe_allow_html=True)
                             st.write("---")
 
                     # Update response container
