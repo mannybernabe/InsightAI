@@ -45,7 +45,7 @@ class GroqClient:
 
     @handle_rate_limit
     def generate_response(self, messages: List[Dict]) -> str:
-        """Generates a response using the Groq API with retries."""
+        """Generates a response using the Groq API with retries and reasoning display."""
         max_retries = 3
         retry_delay = 1
 
@@ -59,10 +59,31 @@ class GroqClient:
                 if not query:
                     return "Please enter a message to start the conversation."
 
+                # Add system message to encourage step-by-step reasoning
+                system_message = {
+                    "role": "system",
+                    "content": """You are a thoughtful AI assistant. For every response:
+1. First analyze the question in detail under a <think> tag
+2. Break down your reasoning process step by step
+3. Only then provide your final answer
+4. Your response should follow this exact format:
+
+<think>
+1. [First step of analysis]
+2. [Second step]
+3. [Final reasoning step]
+</think>
+
+[Your final answer here]"""
+                }
+
+                # Add system message to the beginning of the conversation
+                messages_with_system = [system_message] + messages
+
                 # Generate response with retry logic
                 response = self.client.chat.completions.create(
                     model=self.model,
-                    messages=messages,
+                    messages=messages_with_system,
                     temperature=0.7,
                     max_tokens=2000,
                     timeout=30.0
