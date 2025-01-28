@@ -51,25 +51,63 @@ class GroqClient:
                         "Example: Instead of '!search ai', try '!search artificial intelligence developments 2024'"
                     )
 
-                # Format search results
-                results_text = "Here are the search results:\n\n"
-                for i, result in enumerate(search_results, 1):
-                    if result['link'] == '#':  # Error message
-                        return result['snippet']
-
-                    results_text += f"{i}. {result['title']}\n"
-                    results_text += f"   {result['snippet']}\n"
-                    results_text += f"   Link: {result['link']}\n\n"
-
-                # Add a search context summary if available
+                # Get search context first for a high-level summary
                 try:
                     context = self.search_manager.get_search_context(search_query)
-                    if context:
-                        results_text = f"Summary: {context}\n\nDetailed Results:\n\n{results_text}"
                 except Exception as e:
                     print(f"Error getting search context: {str(e)}")
+                    context = None
 
-                return results_text
+                # Prepare search results for analysis
+                sources = []
+                content_for_analysis = f"Query: {search_query}\n\n"
+
+                if context:
+                    content_for_analysis += f"Context Overview:\n{context}\n\n"
+
+                content_for_analysis += "Detailed Sources:\n\n"
+
+                for i, result in enumerate(search_results, 1):
+                    sources.append(f"[{i}] {result['link']}")
+                    content_for_analysis += f"Source [{i}]:\n"
+                    content_for_analysis += f"Title: {result['title']}\n"
+                    content_for_analysis += f"Content: {result['snippet']}\n\n"
+
+                # Generate comprehensive analysis
+                analysis_prompt = {
+                    "role": "system",
+                    "content": """You are a Perplexity-like AI research assistant. Analyze the provided search results and create a comprehensive response that:
+1. Starts with a clear, direct answer to the query
+2. Provides detailed analysis and insights
+3. Includes specific citations using [1], [2], etc. format
+4. Organizes information logically
+5. Ends with a "References" section listing all sources
+
+Keep your tone professional but conversational. Ensure all claims are backed by the sources provided."""
+                }
+
+                analysis_messages = [
+                    analysis_prompt,
+                    {"role": "user", "content": content_for_analysis}
+                ]
+
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=analysis_messages,
+                    temperature=0.7,
+                    max_tokens=2000,
+                    stream=False
+                )
+
+                analysis = response.choices[0].message.content
+
+                # Add references section if not already included
+                if "References:" not in analysis:
+                    analysis += "\n\nReferences:\n"
+                    for source in sources:
+                        analysis += f"{source}\n"
+
+                return analysis
 
             # Regular chat response
             formatted_messages = []
@@ -77,9 +115,9 @@ class GroqClient:
                 formatted_messages.append({
                     "role": "system",
                     "content": (
-                        "You are a helpful AI assistant. To search the web, use the '!search' "
-                        "command followed by 1-2 keywords. For example: '!search AI news'. "
-                        "If search fails, try again with fewer words after waiting a few minutes."
+                        "You are a helpful AI assistant with capabilities similar to Perplexity. "
+                        "To search the web, use the '!search' command followed by your query. "
+                        "Example: '!search What are the latest developments in AI for 2024?'"
                     )
                 })
 

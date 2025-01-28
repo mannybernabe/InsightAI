@@ -23,6 +23,38 @@ class ChatInterface:
         if "processing" not in st.session_state:
             st.session_state.processing = False
 
+    def format_message_with_citations(self, content: str) -> str:
+        """Format message content with clickable citations and proper styling."""
+        # Check if the message contains references section
+        if "References:" in content:
+            # Split content into main text and references
+            main_content, references = content.split("References:", 1)
+
+            # Format citations in main content
+            for i in range(10):  # Assuming max 10 citations
+                citation = f"[{i}]"
+                if citation in main_content:
+                    main_content = main_content.replace(
+                        citation,
+                        f'<span class="citation">{citation}</span>'
+                    )
+
+            # Format references as clickable links
+            formatted_refs = ""
+            for ref in references.strip().split('\n'):
+                if ref.strip():
+                    # Extract URL if present
+                    if ']' in ref and 'http' in ref:
+                        ref_num = ref.split(']')[0] + ']'
+                        url = ref.split('http')[1].strip()
+                        url = 'http' + url
+                        formatted_refs += f'<p>{ref_num} <a href="{url}" class="source-link" target="_blank">{url}</a></p>'
+                    else:
+                        formatted_refs += f'<p>{ref}</p>'
+
+            return f"{main_content}<h4>References:</h4>{formatted_refs}"
+        return content
+
     def add_message(self, role: str, content: str):
         """Add a message to the chat history."""
         message = format_message(role, content)
@@ -37,7 +69,7 @@ class ChatInterface:
             self.add_message("user", user_message)
             st.session_state.processing = True
             st.session_state.pending_message = user_message
-            st.rerun()  # Force immediate UI update
+            st.rerun()
 
     def process_pending_message(self) -> None:
         """Process any pending message in the session state."""
@@ -50,10 +82,19 @@ class ChatInterface:
                     } for msg in st.session_state.messages
                 ]
 
+                # Show typing indicator
+                with st.chat_message("assistant"):
+                    typing_placeholder = st.empty()
+                    typing_placeholder.markdown("🤔 Thinking...")
+
                 # Get response from Groq
                 response = self.groq_client.generate_response(messages)
                 self.add_message("assistant", response)
-                st.rerun()  # Force immediate UI update for assistant response
+
+                # Remove typing indicator and rerun to show the response
+                typing_placeholder.empty()
+                st.rerun()
+
             except Exception as e:
                 error_msg = f"Error processing message: {str(e)}"
                 print(f"Error in process_pending_message: {error_msg}")
@@ -63,105 +104,45 @@ class ChatInterface:
                 if hasattr(st.session_state, 'pending_message'):
                     delattr(st.session_state, 'pending_message')
 
-    def handle_search(self, query: str, role_filter: str = None, time_filter: str = None) -> None:
-        """Handle search request with enhanced filtering."""
-        if not query.strip():
-            st.session_state.search_results = []
-            return
-
-        try:
-            # Perform enhanced search
-            results = search_messages(
-                st.session_state.messages,
-                query,
-                role_filter=role_filter,
-                time_filter=time_filter
-            )
-            print(f"Found {len(results)} search results for query: {query}")
-
-            if results:
-                # Convert SearchResults to dict format for summary generation
-                result_messages = [r.message for r in results]
-                try:
-                    summary = self.groq_client.generate_search_response(query, result_messages)
-                    results.insert(0, SearchResult(
-                        message=format_message("system", f"Summary: {summary}"),
-                        relevance_score=1.0,
-                        matched_terms=[]
-                    ))
-                except Exception as e:
-                    print(f"Error generating search summary: {str(e)}")
-                    results.insert(0, SearchResult(
-                        message=format_message("system", f"Error generating summary: {str(e)}"),
-                        relevance_score=1.0,
-                        matched_terms=[]
-                    ))
-
-            st.session_state.search_results = results
-
-        except Exception as e:
-            error_msg = f"Error processing search: {str(e)}"
-            print(f"Error in handle_search: {error_msg}")
-            st.error(error_msg)
-
     def create_interface(self):
         """Creates the chat interface using Streamlit components."""
-        # Advanced Search UI in sidebar
-        st.sidebar.title("Advanced Search")
-
-        # Search input
-        search_query = st.sidebar.text_input("Search messages", key="search_input")
-
-        # Filters
-        role_filter = st.sidebar.selectbox(
-            "Filter by role",
-            options=[None, "user", "assistant"],
-            format_func=lambda x: "All roles" if x is None else x.capitalize()
-        )
-
-        time_filter = st.sidebar.selectbox(
-            "Time range",
-            options=[None, "last_hour", "last_day", "last_week"],
-            format_func=lambda x: "All time" if x is None else x.replace("_", " ").capitalize()
-        )
-
-        # Search button
-        if st.sidebar.button("Search"):
-            self.handle_search(search_query, role_filter, time_filter)
-
-        # Display search results
-        if st.session_state.search_results:
-            st.sidebar.markdown("### Search Results")
-            for result in st.session_state.search_results:
-                with st.sidebar.container():
-                    msg = result.message
-                    st.markdown(f"**{msg['role'].title()}** ({msg['timestamp']})")
-                    if result.matched_terms:
-                        st.markdown(f"*Matched terms: {', '.join(result.matched_terms)}*")
-                    if result.relevance_score < 1:  # Don't show for system messages
-                        st.markdown(f"*Relevance: {result.relevance_score:.2%}*")
-                    st.markdown(msg['content'])
-                    st.markdown("---")
-
-        # Main chat area with unique container
+        # Main chat area
         with st.container():
-            st.markdown("### Chat")
-
             # Process any pending message first
             self.process_pending_message()
 
-            # Display chat messages
+            # Display chat messages with enhanced formatting
             for message in st.session_state.messages:
                 with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
+                    if message["role"] == "assistant":
+                        # Format assistant messages with citations
+                        formatted_content = self.format_message_with_citations(message["content"])
+                        st.markdown(formatted_content, unsafe_allow_html=True)
+                    else:
+                        # Display user messages normally
+                        st.markdown(message["content"])
                     st.caption(f"Sent at {message['timestamp']}")
 
             # Show processing indicator
             if st.session_state.processing:
                 with st.chat_message("assistant"):
-                    st.write("Thinking...")
+                    st.write("🤔 Analyzing and searching...")
 
             # Chat input
-            if message := st.chat_input("Type your message here...", 
-                                    disabled=st.session_state.processing):
+            if message := st.chat_input(
+                "Ask anything or type !search followed by your query...",
+                disabled=st.session_state.processing
+            ):
                 self.on_message_submit(message)
+
+        # Info section at the bottom
+        st.markdown("""
+            <div style='margin-top: 2rem; padding: 1rem; background-color: #f7f7f7; border-radius: 5px;'>
+                <h4>Tips:</h4>
+                <ul>
+                    <li>Use <code>!search your query</code> to search the web</li>
+                    <li>Click on citations [1], [2], etc. to see sources</li>
+                    <li>Responses include real-time web search results and analysis</li>
+                </ul>
+            </div>
+        """, unsafe_allow_html=True)
