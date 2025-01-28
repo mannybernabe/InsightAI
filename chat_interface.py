@@ -106,12 +106,30 @@ class ChatInterface:
 
                     def format_thinking(text):
                         """Format thinking content with proper styling."""
+                        steps = []
+                        for line in text.strip().split('\n'):
+                            # Handle numbered steps
+                            if re.match(r'^\d+\.', line.strip()):
+                                steps.append(line.strip())
+                            else:
+                                # Append to the last step if it exists
+                                if steps:
+                                    steps[-1] += " " + line.strip()
+                                else:
+                                    steps.append(line.strip())
+
+                        formatted_steps = "\n".join(steps)
                         return """
-                            <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 5px; 
-                                      margin-bottom: 1rem; font-family: monospace;'>
+                            <div style='background-color: #f0f2f6; 
+                                      padding: 1.5rem; 
+                                      border-radius: 8px; 
+                                      margin-bottom: 1rem; 
+                                      font-family: monospace; 
+                                      white-space: pre-wrap;
+                                      line-height: 1.6;'>
                                 {}
                             </div>
-                        """.format(text)
+                        """.format(formatted_steps)
 
                     for chunk in response_stream:
                         if not chunk.choices[0].delta.content:
