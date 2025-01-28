@@ -3,7 +3,7 @@ import time
 import json
 from openai import OpenAI
 from typing import List, Dict
-from duckduckgo_search import DDGS
+from search_manager import SearchManager
 from utils import handle_rate_limit
 
 class GroqClient:
@@ -21,68 +21,7 @@ class GroqClient:
             raise ValueError(f"Failed to initialize Groq client. Please verify your API key. Error: {str(e)}")
 
         self.model = "mixtral-8x7b-32768"
-
-    def web_search(self, query: str, num_results: int = 3) -> List[Dict]:
-        """Perform web search using DuckDuckGo with fresh session."""
-        try:
-            print(f"Performing web search for query: {query}")
-            results = []
-            retries = 3
-            retry_delay = 2  # seconds between retries
-
-            while retries > 0:
-                try:
-                    # Create a fresh DDGS session for each attempt
-                    with DDGS() as ddgs:
-                        print(f"Search attempt {4-retries} for query: {query}")
-                        search_results = list(ddgs.text(
-                            query,
-                            max_results=num_results,
-                            region='wt-wt',  # Worldwide results
-                            safesearch='moderate'  # Default safe search
-                        ))
-                        print(f"Raw search results: {search_results}")
-
-                        if search_results:
-                            for r in search_results:
-                                if isinstance(r, dict):
-                                    title = r.get('title', '').strip()
-                                    link = r.get('link', '').strip()
-                                    body = r.get('body', r.get('snippet', '')).strip()
-
-                                    if title and link and body:
-                                        results.append({
-                                            'title': title,
-                                            'link': link,
-                                            'snippet': body
-                                        })
-
-                            if results:
-                                print(f"Successfully found {len(results)} results")
-                                break
-
-                    retries -= 1
-                    if retries > 0:
-                        print(f"No valid results found, retrying in {retry_delay}s... ({retries} attempts left)")
-                        time.sleep(retry_delay)
-                        retry_delay *= 2  # Exponential backoff
-
-                except Exception as search_error:
-                    print(f"Search attempt error: {str(search_error)}")
-                    retries -= 1
-                    if retries > 0:
-                        print(f"Retrying search after error in {retry_delay}s... ({retries} attempts left)")
-                        time.sleep(retry_delay)
-                        retry_delay *= 2  # Exponential backoff
-                    continue
-
-            if not results:
-                print("No results found from DuckDuckGo search after all retries")
-            return results
-
-        except Exception as e:
-            print(f"Web search error: {str(e)}")
-            return []
+        self.search_manager = SearchManager()
 
     @handle_rate_limit
     def generate_response(self, messages: List[Dict]) -> str:
@@ -100,7 +39,7 @@ class GroqClient:
                         "Example: !search latest AI developments"
                     )
 
-                search_results = self.web_search(search_query)
+                search_results = self.search_manager.search(search_query)
                 print(f"Search complete, found {len(search_results)} results")
 
                 if not search_results:
