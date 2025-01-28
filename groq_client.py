@@ -27,14 +27,20 @@ class GroqClient:
         try:
             print(f"Performing web search for query: {query}")
             results = []
-            for result in self.ddgs.text(query, max_results=num_results):
-                print(f"Found result: {result}")
-                if result and 'title' in result and 'link' in result and 'body' in result:
-                    results.append({
-                        'title': result['title'],
-                        'link': result['link'],
-                        'snippet': result['body']
-                    })
+            for r in self.ddgs.text(query, max_results=num_results):
+                print(f"Found result: {r}")
+                if r and isinstance(r, dict):
+                    # Extract the fields we need, with fallbacks
+                    title = r.get('title', 'No title available')
+                    link = r.get('link', '')
+                    body = r.get('body', r.get('snippet', 'No description available'))
+
+                    if link:  # Only add if we at least have a valid link
+                        results.append({
+                            'title': title,
+                            'link': link,
+                            'snippet': body
+                        })
 
             if not results:
                 print("No results found from DuckDuckGo search")
@@ -76,7 +82,7 @@ class GroqClient:
             if not any(msg["role"] == "system" for msg in messages):
                 formatted_messages.append({
                     "role": "system",
-                    "content": "You are a helpful AI assistant. You can also perform web searches using the '!search' command followed by your query."
+                    "content": "You are a helpful AI assistant. You can also perform web searches using the '!search' command followed by your query (e.g. '!search python programming')."
                 })
 
             formatted_messages.extend(messages)
