@@ -23,18 +23,7 @@ def main():
     """)
 
     # Create and display the chat interface
-    chat_interface = chat.create_interface()
-    st.markdown("""
-    <style>
-    .stApp {
-        max-width: 1200px;
-        margin: 0 auto;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Display the Gradio interface in Streamlit
-    st.write(chat_interface)
+    chat.create_interface()
 
 if __name__ == "__main__":
     main()
