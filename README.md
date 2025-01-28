@@ -1,4 +1,4 @@
-# AI Research Assistant 🤖
+# InsightAI 🤖
 
 An advanced AI-powered search and conversation platform that delivers intelligent, context-aware interactions with transparent reasoning processes.
 
