@@ -20,7 +20,7 @@ class ChatInterface:
             st.session_state.messages = []
             print("Initialized empty messages list in session state")
         if "show_reasoning" not in st.session_state:
-            st.session_state.show_reasoning = False
+            st.session_state.show_reasoning = True  # Always show reasoning by default
         if "processing" not in st.session_state:
             st.session_state.processing = False
         if "current_response" not in st.session_state:
@@ -105,65 +105,59 @@ class ChatInterface:
                     typing_placeholder = st.empty()
                     response_placeholder = st.empty()
 
-                    if st.session_state.show_reasoning:
-                        # Create an expander for reasoning
-                        reasoning_expander = st.expander("🤔 Reasoning Process", expanded=True)
-                        reasoning_content = reasoning_expander.empty()
+                    # Create a dedicated container for reasoning
+                    reasoning_container = st.container()
 
-                        # Stream the response with reasoning
-                        typing_placeholder.markdown("🤔 Thinking and analyzing...")
-                        response_stream = self.groq_client.generate_reasoning_stream(messages)
+                    # Stream the response with reasoning
+                    typing_placeholder.markdown("🤔 Analyzing step by step...")
+                    response_stream = self.groq_client.generate_reasoning_stream(messages)
 
-                        full_response = ""
-                        current_thinking = ""
-                        in_think_tag = False
+                    full_response = ""
+                    current_thinking = ""
+                    in_think_tag = False
 
-                        for chunk in response_stream:
-                            if chunk.choices[0].delta.content:
-                                content = chunk.choices[0].delta.content
-                                full_response += content
+                    for chunk in response_stream:
+                        if chunk.choices[0].delta.content:
+                            content = chunk.choices[0].delta.content
+                            full_response += content
 
-                                # Process think tags in chunks
-                                if "<think>" in content:
-                                    in_think_tag = True
-                                    current_thinking = ""
-                                elif "</think>" in content and in_think_tag:
-                                    in_think_tag = False
-                                    # Display complete thinking content
-                                    reasoning_content.markdown(current_thinking)
-                                elif in_think_tag:
-                                    current_thinking += content
-                                    # Update thinking content in real-time
-                                    reasoning_content.markdown(current_thinking + "▌")
-                                else:
-                                    # Regular response content
-                                    clean_response, _ = self.extract_think_tags(full_response)
-                                    if clean_response.strip():
-                                        response_placeholder.markdown(
-                                            self.format_message_with_citations(clean_response) + "▌",
-                                            unsafe_allow_html=True
-                                        )
+                            # Process think tags in chunks
+                            if "<think>" in content:
+                                in_think_tag = True
+                                current_thinking = ""
+                                with reasoning_container:
+                                    st.markdown("### 🧠 Reasoning Process")
+                            elif "</think>" in content and in_think_tag:
+                                in_think_tag = False
+                                # Display complete thinking content
+                                with reasoning_container:
+                                    st.markdown(current_thinking)
+                            elif in_think_tag:
+                                current_thinking += content
+                                # Update thinking content in real-time
+                                with reasoning_container:
+                                    st.markdown(current_thinking + "▌")
+                            else:
+                                # Regular response content
+                                clean_response, _ = self.extract_think_tags(full_response)
+                                if clean_response.strip():
+                                    response_placeholder.markdown(
+                                        self.format_message_with_citations(clean_response) + "▌",
+                                        unsafe_allow_html=True
+                                    )
 
-                        # Final update
-                        clean_response, final_thinking = self.extract_think_tags(full_response)
-                        if final_thinking:
-                            reasoning_content.markdown(final_thinking)
-                        response_placeholder.markdown(
-                            self.format_message_with_citations(clean_response),
-                            unsafe_allow_html=True
-                        )
-                        st.session_state.current_response = clean_response
+                    # Final update
+                    clean_response, final_thinking = self.extract_think_tags(full_response)
+                    if final_thinking:
+                        with reasoning_container:
+                            st.markdown("### 🧠 Reasoning Process")
+                            st.markdown(final_thinking)
 
-                    else:
-                        # Get complete response without streaming
-                        typing_placeholder.markdown("🔍 Searching and analyzing...")
-                        response = self.groq_client.generate_response(messages)
-                        clean_response, _ = self.extract_think_tags(response)
-                        response_placeholder.markdown(
-                            self.format_message_with_citations(clean_response),
-                            unsafe_allow_html=True
-                        )
-                        st.session_state.current_response = clean_response
+                    response_placeholder.markdown(
+                        self.format_message_with_citations(clean_response),
+                        unsafe_allow_html=True
+                    )
+                    st.session_state.current_response = clean_response
 
                 # Add the final response to chat history
                 self.add_message("assistant", st.session_state.current_response)
@@ -185,11 +179,6 @@ class ChatInterface:
         """Creates the chat interface using Streamlit components."""
         # Main chat area
         with st.container():
-            # Add reasoning toggle in the sidebar
-            st.sidebar.markdown("### Settings")
-            st.sidebar.toggle("Show Reasoning Process", key="show_reasoning", 
-                            help="Display the AI's reasoning process token by token")
-
             # Process any pending message first
             self.process_pending_message()
 
@@ -208,10 +197,7 @@ class ChatInterface:
             # Show processing indicator
             if st.session_state.processing:
                 with st.chat_message("assistant"):
-                    if st.session_state.show_reasoning:
-                        st.write("🤔 Analyzing step by step...")
-                    else:
-                        st.write("🔍 Searching and analyzing...")
+                    st.write("🤔 Analyzing step by step...")
 
             # Chat input
             if message := st.chat_input(
@@ -226,7 +212,7 @@ class ChatInterface:
                 <h4>Tips:</h4>
                 <ul>
                     <li>Ask any question to search and analyze information</li>
-                    <li>Toggle 'Show Reasoning Process' in settings to see the AI's thinking</li>
+                    <li>Watch the reasoning process unfold in real-time</li>
                     <li>Click on citations [1], [2], etc. to see sources</li>
                 </ul>
             </div>

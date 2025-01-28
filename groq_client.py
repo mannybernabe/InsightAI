@@ -82,22 +82,21 @@ class GroqClient:
             # Generate comprehensive analysis
             analysis_prompt = {
                 "role": "system",
-                "content": """You are a Perplexity-like AI research assistant. For every query:
-1. First, explain your thinking process inside <think> tags
-2. Then provide a clear analysis that:
-   - Starts with a direct answer
-   - Includes detailed analysis with citations [1], [2], etc.
-   - Organizes information logically
-   - Ends with a "References" section
+                "content": """You are a Perplexity-like AI research assistant. Your responses MUST follow this exact format:
 
-Example format:
 <think>
-Let me analyze the sources and synthesize a comprehensive response...
-[Your reasoning process here]
+First, I will explain my reasoning process step by step:
+1. [First step of analysis]
+2. [Second step]
+3. [Synthesis of findings]
 </think>
-[Your final response with citations]
 
-Keep your tone professional but conversational. Back all claims with sources."""
+[Direct answer to the query]
+[Detailed analysis with citations [1], [2], etc.]
+[Additional relevant information]
+
+References:
+[List of sources]"""
             }
 
             analysis_messages = [
