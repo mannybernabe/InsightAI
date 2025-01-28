@@ -13,14 +13,12 @@ class GroqClient:
         try:
             self.client = OpenAI(
                 api_key=api_key,
-                base_url="https://api.groq.com/openai/v1"  # Updated endpoint path
+                base_url="https://api.groq.com/openai/v1"  # Keep the correct endpoint
             )
-            # Test connection with a simple request
-            self.client.models.list()
         except Exception as e:
             raise ValueError(f"Failed to initialize Groq client. Please verify your API key. Error: {str(e)}")
 
-        self.model = "mixtral-8x7b-32768"  # Updated to use a supported Groq model
+        self.model = "mixtral-8x7b-32768"  # Using the supported Groq model
 
     @handle_rate_limit
     def generate_response(self, messages: List[Dict]) -> str:
