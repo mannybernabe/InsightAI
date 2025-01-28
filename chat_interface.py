@@ -28,15 +28,12 @@ class ChatInterface:
 
         print(f"Processing new message: {message[:50]}...")
         try:
-            # Immediately show user message in UI
+            # Add user message to history
             user_message = format_message("user", message)
             st.session_state.messages = manage_chat_history(
                 st.session_state.messages,
                 user_message
             )
-
-            # Force a rerun to show the message immediately
-            st.rerun()
 
             # Format messages for API
             messages = [
