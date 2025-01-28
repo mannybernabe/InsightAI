@@ -45,19 +45,15 @@ def format_thinking(text):
 
     formatted_paragraphs = "\n\n".join(paragraphs)  # Double line break between paragraphs
 
-    return """
-        <div style='
-            background-color: #f0f2f6; 
-            padding: 1.5rem; 
-            border-radius: 8px; 
-            margin-bottom: 1rem; 
-            font-family: monospace; 
-            white-space: pre-wrap;
-            line-height: 1.6;
-        '>
-            {}
-        </div>
-    """.format(formatted_paragraphs)
+    return """<div style='
+                background-color: #f0f2f6; 
+                padding: 1.5rem; 
+                border-radius: 8px; 
+                margin-bottom: 1rem; 
+                font-family: monospace; 
+                white-space: pre-wrap;
+                line-height: 1.6;
+            '>{}</div>""".format(formatted_paragraphs)
 
 def main():
     st.title("🤖 AI Research Assistant")
