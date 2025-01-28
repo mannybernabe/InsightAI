@@ -20,6 +20,8 @@ class ChatInterface:
             print("Initialized empty messages list in session state")
         if "search_results" not in st.session_state:
             st.session_state.search_results = []
+        if "message_key" not in st.session_state:
+            st.session_state.message_key = 0
 
     def handle_message(self, message: str) -> None:
         """Handle new message from user."""
@@ -111,7 +113,10 @@ class ChatInterface:
                 st.markdown(message["content"])
                 st.caption(f"Sent at {message['timestamp']}")
 
-        # Process new messages
-        if message := st.chat_input("Type your message here...", key="chat_input"):
+        # Increment message key to force refresh of chat input
+        st.session_state.message_key += 1
+
+        # Process new messages with unique key
+        if message := st.chat_input("Type your message here...", key=f"chat_input_{st.session_state.message_key}"):
             print("Received new chat input")
             self.handle_message(message)
