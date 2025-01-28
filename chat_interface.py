@@ -18,10 +18,12 @@ class ChatInterface:
         if "messages" not in st.session_state:
             st.session_state.messages = []
             print("Initialized empty messages list in session state")
-        if "search_results" not in st.session_state:
-            st.session_state.search_results = []
+        if "show_reasoning" not in st.session_state:
+            st.session_state.show_reasoning = False
         if "processing" not in st.session_state:
             st.session_state.processing = False
+        if "current_response" not in st.session_state:
+            st.session_state.current_response = ""
 
     def format_message_with_citations(self, content: str) -> str:
         """Format message content with clickable citations and proper styling."""
@@ -69,6 +71,7 @@ class ChatInterface:
             self.add_message("user", user_message)
             st.session_state.processing = True
             st.session_state.pending_message = user_message
+            st.session_state.current_response = ""
             st.rerun()
 
     def process_pending_message(self) -> None:
@@ -82,16 +85,36 @@ class ChatInterface:
                     } for msg in st.session_state.messages
                 ]
 
-                # Show typing indicator
+                # Show typing indicator and response area
                 with st.chat_message("assistant"):
                     typing_placeholder = st.empty()
-                    typing_placeholder.markdown("🤔 Thinking...")
+                    response_placeholder = st.empty()
 
-                # Get response from Groq
-                response = self.groq_client.generate_response(messages)
-                self.add_message("assistant", response)
+                    if st.session_state.show_reasoning:
+                        # Stream the response with reasoning
+                        typing_placeholder.markdown("🤔 Thinking and analyzing...")
+                        response_stream = self.groq_client.generate_reasoning_stream(messages)
 
-                # Remove typing indicator and rerun to show the response
+                        full_response = ""
+                        for chunk in response_stream:
+                            if chunk.choices[0].delta.content:
+                                full_response += chunk.choices[0].delta.content
+                                response_placeholder.markdown(full_response + "▌")
+
+                        # Update final response
+                        response_placeholder.markdown(full_response)
+                        st.session_state.current_response = full_response
+                    else:
+                        # Get complete response
+                        typing_placeholder.markdown("🔍 Searching and analyzing...")
+                        response = self.groq_client.generate_response(messages)
+                        response_placeholder.markdown(response)
+                        st.session_state.current_response = response
+
+                # Add the final response to chat history
+                self.add_message("assistant", st.session_state.current_response)
+
+                # Remove typing indicator and rerun
                 typing_placeholder.empty()
                 st.rerun()
 
@@ -108,6 +131,11 @@ class ChatInterface:
         """Creates the chat interface using Streamlit components."""
         # Main chat area
         with st.container():
+            # Add reasoning toggle in the sidebar
+            st.sidebar.markdown("### Settings")
+            st.sidebar.toggle("Show Reasoning Process", key="show_reasoning", 
+                            help="Display the AI's reasoning process token by token")
+
             # Process any pending message first
             self.process_pending_message()
 
@@ -126,11 +154,14 @@ class ChatInterface:
             # Show processing indicator
             if st.session_state.processing:
                 with st.chat_message("assistant"):
-                    st.write("🤔 Analyzing and searching...")
+                    if st.session_state.show_reasoning:
+                        st.write("🤔 Analyzing step by step...")
+                    else:
+                        st.write("🔍 Searching and analyzing...")
 
             # Chat input
             if message := st.chat_input(
-                "Ask anything or type !search followed by your query...",
+                "Ask anything...",
                 disabled=st.session_state.processing
             ):
                 self.on_message_submit(message)
@@ -140,9 +171,9 @@ class ChatInterface:
             <div style='margin-top: 2rem; padding: 1rem; background-color: #f7f7f7; border-radius: 5px;'>
                 <h4>Tips:</h4>
                 <ul>
-                    <li>Use <code>!search your query</code> to search the web</li>
+                    <li>Ask any question to search and analyze information</li>
+                    <li>Toggle 'Show Reasoning Process' in settings to see the AI's thinking</li>
                     <li>Click on citations [1], [2], etc. to see sources</li>
-                    <li>Responses include real-time web search results and analysis</li>
                 </ul>
             </div>
         """, unsafe_allow_html=True)
