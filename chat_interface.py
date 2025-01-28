@@ -1,7 +1,8 @@
 import streamlit as st
-from typing import List, Dict
+from typing import List, Dict, Optional, Tuple
 from groq_client import GroqClient
-from utils import manage_chat_history, format_message, search_messages, SearchResult
+from utils import manage_chat_history, format_message
+import re
 
 class ChatInterface:
     def __init__(self):
@@ -24,6 +25,20 @@ class ChatInterface:
             st.session_state.processing = False
         if "current_response" not in st.session_state:
             st.session_state.current_response = ""
+
+    def extract_think_tags(self, text: str) -> Tuple[str, Optional[str]]:
+        """Extract content from <think> tags and return both thinking and cleaned response."""
+        thinking = None
+        clean_text = text
+
+        # Find content within <think> tags
+        think_match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
+        if think_match:
+            thinking = think_match.group(1).strip()
+            # Remove the think tags and their content from the response
+            clean_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+
+        return clean_text, thinking
 
     def format_message_with_citations(self, content: str) -> str:
         """Format message content with clickable citations and proper styling."""
@@ -96,19 +111,55 @@ class ChatInterface:
                         response_stream = self.groq_client.generate_reasoning_stream(messages)
 
                         full_response = ""
+                        current_tag = ""
+                        in_think_tag = False
+                        thinking_content = ""
+
                         for chunk in response_stream:
                             if chunk.choices[0].delta.content:
-                                full_response += chunk.choices[0].delta.content
-                                response_placeholder.markdown(full_response + "▌")
+                                content = chunk.choices[0].delta.content
+                                full_response += content
 
-                        # Update final response
-                        response_placeholder.markdown(full_response)
-                        st.session_state.current_response = full_response
+                                # Check for think tag boundaries
+                                if "<think>" in content:
+                                    in_think_tag = True
+                                    thinking_content = ""
+                                elif "</think>" in content:
+                                    in_think_tag = False
+                                    # Display thinking in a special format
+                                    with st.expander("🤔 Reasoning Process", expanded=True):
+                                        st.markdown(thinking_content)
+                                elif in_think_tag:
+                                    thinking_content += content
+                                    # Show thinking in real-time in the expander
+                                    with st.expander("🤔 Reasoning Process", expanded=True):
+                                        st.markdown(thinking_content + "▌")
+                                else:
+                                    # Regular response content
+                                    clean_response, _ = self.extract_think_tags(full_response)
+                                    response_placeholder.markdown(
+                                        self.format_message_with_citations(clean_response) + "▌",
+                                        unsafe_allow_html=True
+                                    )
+
+                        # Final update of the response
+                        clean_response, thinking = self.extract_think_tags(full_response)
+                        if thinking:
+                            with st.expander("🤔 Reasoning Process", expanded=True):
+                                st.markdown(thinking)
+                        response_placeholder.markdown(
+                            self.format_message_with_citations(clean_response),
+                            unsafe_allow_html=True
+                        )
+                        st.session_state.current_response = clean_response
                     else:
                         # Get complete response
                         typing_placeholder.markdown("🔍 Searching and analyzing...")
                         response = self.groq_client.generate_response(messages)
-                        response_placeholder.markdown(response)
+                        response_placeholder.markdown(
+                            self.format_message_with_citations(response),
+                            unsafe_allow_html=True
+                        )
                         st.session_state.current_response = response
 
                 # Add the final response to chat history

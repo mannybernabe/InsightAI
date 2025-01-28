@@ -1,8 +1,9 @@
 import os
 import time
 import json
+import re
 from openai import OpenAI
-from typing import List, Dict, Generator, Union
+from typing import List, Dict, Generator, Union, Optional
 from search_manager import SearchManager
 from utils import handle_rate_limit
 
@@ -22,6 +23,20 @@ class GroqClient:
 
         self.model = "mixtral-8x7b-32768"
         self.search_manager = SearchManager()
+
+    def extract_thinking_tags(self, text: str) -> tuple[str, Optional[str]]:
+        """Extract content from <think> tags and return both thinking and cleaned response."""
+        thinking = None
+        clean_text = text
+
+        # Find content within <think> tags
+        think_match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
+        if think_match:
+            thinking = think_match.group(1).strip()
+            # Remove the think tags and their content from the response
+            clean_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+
+        return clean_text, thinking
 
     @handle_rate_limit
     def generate_response(self, messages: List[Dict], stream: bool = False) -> Union[str, Generator]:
@@ -68,11 +83,19 @@ class GroqClient:
             analysis_prompt = {
                 "role": "system",
                 "content": """You are a Perplexity-like AI research assistant. For every query:
-1. Search and analyze available information
-2. Start with a clear, direct answer
-3. Provide detailed analysis with specific citations [1], [2], etc.
-4. Organize information logically
-5. End with a "References" section
+1. First, explain your thinking process inside <think> tags
+2. Then provide a clear analysis that:
+   - Starts with a direct answer
+   - Includes detailed analysis with citations [1], [2], etc.
+   - Organizes information logically
+   - Ends with a "References" section
+
+Example format:
+<think>
+Let me analyze the sources and synthesize a comprehensive response...
+[Your reasoning process here]
+</think>
+[Your final response with citations]
 
 Keep your tone professional but conversational. Back all claims with sources."""
             }
@@ -96,13 +119,16 @@ Keep your tone professional but conversational. Back all claims with sources."""
 
             analysis = response.choices[0].message.content
 
-            # Add references section if not already included
-            if "References:" not in analysis:
-                analysis += "\n\nReferences:\n"
-                for source in sources:
-                    analysis += f"{source}\n"
+            # Extract thinking and clean response
+            final_response, thinking = self.extract_thinking_tags(analysis)
 
-            return analysis
+            # Add references section if not already included
+            if "References:" not in final_response:
+                final_response += "\n\nReferences:\n"
+                for source in sources:
+                    final_response += f"{source}\n"
+
+            return final_response
 
         except Exception as e:
             error_msg = f"Error generating response: {str(e)}"
