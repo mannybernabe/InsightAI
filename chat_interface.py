@@ -37,6 +37,7 @@ class ChatInterface:
             self.add_message("user", user_message)
             st.session_state.processing = True
             st.session_state.pending_message = user_message
+            st.rerun()  # Force immediate UI update
 
     def process_pending_message(self) -> None:
         """Process any pending message in the session state."""
@@ -52,13 +53,15 @@ class ChatInterface:
                 # Get response from Groq
                 response = self.groq_client.generate_response(messages)
                 self.add_message("assistant", response)
+                st.rerun()  # Force immediate UI update for assistant response
             except Exception as e:
                 error_msg = f"Error processing message: {str(e)}"
                 print(f"Error in process_pending_message: {error_msg}")
                 st.error(error_msg)
             finally:
                 st.session_state.processing = False
-                delattr(st.session_state, 'pending_message')
+                if hasattr(st.session_state, 'pending_message'):
+                    delattr(st.session_state, 'pending_message')
 
     def handle_search(self, query: str) -> None:
         """Handle search request."""
@@ -88,35 +91,38 @@ class ChatInterface:
     def create_interface(self):
         """Creates the chat interface using Streamlit components."""
         st.sidebar.title("Search Messages")
-        search_query = st.sidebar.text_input("Enter search term")
+        search_query = st.sidebar.text_input("Enter search term", key="search_input")
         if search_query:
             self.handle_search(search_query)
 
         if st.session_state.search_results:
             st.sidebar.markdown("### Search Results")
-            for msg in st.session_state.search_results:
+            for idx, msg in enumerate(st.session_state.search_results):
                 with st.sidebar.container():
                     st.markdown(f"**{msg['role'].title()}** ({msg['timestamp']})")
                     st.markdown(msg['content'])
                     st.markdown("---")
 
-        # Main chat area
-        st.markdown("### Chat")
+        # Main chat area with unique container key
+        with st.container():
+            st.markdown("### Chat")
 
-        # Process any pending message first
-        self.process_pending_message()
+            # Process any pending message first
+            self.process_pending_message()
 
-        # Display chat messages
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-                st.caption(f"Sent at {message['timestamp']}")
+            # Display chat messages with unique keys
+            for idx, message in enumerate(st.session_state.messages):
+                with st.chat_message(message["role"], key=f"msg_{idx}"):
+                    st.markdown(message["content"])
+                    st.caption(f"Sent at {message['timestamp']}")
 
-        # Show processing indicator
-        if st.session_state.processing:
-            with st.chat_message("assistant"):
-                st.write("Thinking...")
+            # Show processing indicator
+            if st.session_state.processing:
+                with st.chat_message("assistant", key="processing"):
+                    st.write("Thinking...")
 
-        # Chat input
-        if message := st.chat_input("Type your message here...", disabled=st.session_state.processing):
-            self.on_message_submit(message)
+            # Chat input
+            if message := st.chat_input("Type your message here...", 
+                                      key="chat_input",
+                                      disabled=st.session_state.processing):
+                self.on_message_submit(message)
