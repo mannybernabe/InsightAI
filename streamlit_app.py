@@ -22,6 +22,9 @@ def initialize_chat():
     if "search_enabled" not in st.session_state:
         st.session_state.search_enabled = False
 
+    if "search_results" not in st.session_state:
+        st.session_state.search_results = None
+
     if "groq_client" not in st.session_state:
         try:
             st.session_state.groq_client = GroqClient()
@@ -58,6 +61,25 @@ def format_thinking(text):
                 line-height: 1.6;
             '>{}</div>""".format(formatted_paragraphs)
 
+def display_search_results(search_results):
+    """Display search results in a collapsible section."""
+    if search_results:
+        with st.expander("🔍 Search Results", expanded=False):
+            for i, result in enumerate(search_results, 1):
+                st.markdown(f"""
+                <div style='
+                    background-color: white;
+                    padding: 1rem;
+                    border-radius: 8px;
+                    margin-bottom: 0.5rem;
+                    border: 1px solid #e0e0e0;
+                '>
+                    <h4>Source {i}</h4>
+                    <p>{result.get('content', 'No content available')}</p>
+                    <p><small><em>URL: <a href="{result.get('url', '#')}">{result.get('url', 'No URL available')}</a></em></small></p>
+                </div>
+                """, unsafe_allow_html=True)
+
 def main():
     st.title("🤖 AI Research Assistant")
 
@@ -75,6 +97,10 @@ def main():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             if message["role"] == "assistant":
+                # Display search results if available
+                if 'search_results' in message:
+                    display_search_results(message['search_results'])
+
                 reasoning, answer = extract_reasoning(message["content"])
                 if reasoning:
                     st.markdown("### 🧠 Reasoning Process")
@@ -100,11 +126,19 @@ def main():
 
                 # Generate response with search if enabled
                 if st.session_state.search_enabled:
+                    # Get search results
+                    search_results = st.session_state.groq_client.search_manager.search(prompt)
+                    st.session_state.search_results = search_results
+
+                    # Display search results
+                    display_search_results(search_results)
+
                     # Use search-enabled response generation
                     response = st.session_state.groq_client.generate_response_with_search(
                         st.session_state.messages
                     )
                 else:
+                    st.session_state.search_results = None
                     # Use standard response generation
                     response = st.session_state.groq_client.generate_response(
                         st.session_state.messages
@@ -113,21 +147,26 @@ def main():
                 # Extract and display reasoning and answer separately
                 reasoning, answer = extract_reasoning(response)
 
-                if reasoning:
-                    # Clear the thinking placeholder
-                    message_placeholder.empty()
+                # Clear the thinking placeholder
+                message_placeholder.empty()
 
+                if reasoning:
                     # Show reasoning process
                     st.markdown("### 🧠 Reasoning Process")
                     st.markdown(format_thinking(reasoning), unsafe_allow_html=True)
 
                 # Show final response
                 if answer.strip():
-                    st.markdown("### Response")
                     st.markdown(answer.strip())
 
-                # Add assistant response to chat history
-                st.session_state.messages.append({"role": "assistant", "content": response})
+                # Add assistant response to chat history with search results
+                response_message = {
+                    "role": "assistant",
+                    "content": response,
+                }
+                if st.session_state.search_results:
+                    response_message['search_results'] = st.session_state.search_results
+                st.session_state.messages.append(response_message)
 
         except Exception as e:
             error_msg = f"Error generating response: {str(e)}"
