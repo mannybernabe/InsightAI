@@ -2,6 +2,7 @@ import os
 import gradio as gr
 from groq_client import GroqClient
 import logging
+from typing import Tuple, List
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -14,56 +15,62 @@ class GradioChat:
             logger.info("Initialized Groq client successfully")
         except Exception as e:
             logger.error(f"Failed to initialize Groq client: {str(e)}")
-            raise
+            self.initialization_error = str(e)
+            self.groq_client = None
 
-    def chat(self, message, history):
-        """Main chat function that handles message processing."""
-        if not message.strip():
-            return history, ""
-
+    def chat(self, message: str, history: List[Tuple[str, str]]) -> Tuple[List[Tuple[str, str]], str]:
+        """Main chat function that handles message processing with proper error handling."""
         try:
+            if not message.strip():
+                return history, ""
+
+            if self.groq_client is None:
+                error_msg = f"Chat system is not properly initialized. Error: {self.initialization_error}"
+                logger.error(error_msg)
+                return history + [(message, f"❌ {error_msg}")], ""
+
             logger.info(f"Processing message: {message}")
 
-            # Convert history to messages format for GroqClient
+            # Convert history to messages format
             messages = []
             for h in history:
                 messages.extend([
                     {"role": "user", "content": h[0]},
                     {"role": "assistant", "content": h[1]}
                 ])
-
-            # Add current message
             messages.append({"role": "user", "content": message})
 
-            # Get response from GroqClient
+            # Get response with error handling
             response = self.groq_client.generate_response(messages)
-            if isinstance(response, str):
-                logger.info("Got response from Groq")
-                # Update history with the new message pair
-                history.append((message, response))
-                return history, ""
+            if response:
+                logger.info("Successfully received response from Groq")
+                return history + [(message, response)], ""
             else:
-                logger.error("Unexpected response type from Groq")
-                return history + [(message, "❌ Error: Unexpected response type")], ""
+                error_msg = "Failed to get a valid response from the AI service"
+                logger.error(error_msg)
+                return history + [(message, f"❌ {error_msg}")], ""
 
         except Exception as e:
-            logger.error(f"Error in chat: {str(e)}")
-            return history + [(message, f"❌ Error: {str(e)}")], ""
+            error_msg = f"Error processing message: {str(e)}"
+            logger.error(error_msg)
+            return history + [(message, f"❌ {error_msg}")], ""
 
 def create_interface():
     try:
         logger.info("Creating Gradio interface...")
         chat = GradioChat()
-        logger.info("Created GradioChat instance")
 
-        with gr.Blocks() as demo:
-            gr.Markdown("# 🔍 AI Research Assistant")
+        with gr.Blocks(title="AI Research Assistant") as demo:
+            gr.Markdown("""
+            # 🔍 AI Research Assistant
+            Ask anything and get detailed responses with citations and reasoning.
+            """)
 
             chatbot = gr.Chatbot(
                 [],
                 show_label=False,
                 container=True,
-                height=400,
+                height=450,
                 avatar_images=("👤", "🤖")
             )
 
@@ -71,19 +78,27 @@ def create_interface():
                 msg = gr.Textbox(
                     show_label=False,
                     placeholder="Ask anything...",
-                    container=False
+                    container=False,
+                    scale=8
                 )
-                submit = gr.Button("Send")
+                submit = gr.Button("Send", scale=1)
 
-            # Set up event handlers
+            # Set up event handlers with error handling
+            def on_submit(message, history):
+                try:
+                    return chat.chat(message, history)
+                except Exception as e:
+                    logger.error(f"Error in submit handler: {str(e)}")
+                    return history + [(message, f"❌ Error: {str(e)}")], ""
+
             submit.click(
-                chat.chat,
+                on_submit,
                 inputs=[msg, chatbot],
                 outputs=[chatbot, msg]
             ).then(lambda: "", None, msg)
 
             msg.submit(
-                chat.chat,
+                on_submit,
                 inputs=[msg, chatbot],
                 outputs=[chatbot, msg]
             ).then(lambda: "", None, msg)
@@ -91,7 +106,8 @@ def create_interface():
         return demo
 
     except Exception as e:
-        logger.error(f"Error creating interface: {str(e)}")
+        error_msg = f"Error creating interface: {str(e)}"
+        logger.error(error_msg)
         raise
 
 if __name__ == "__main__":
