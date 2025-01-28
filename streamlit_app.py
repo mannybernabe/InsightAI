@@ -52,12 +52,12 @@ def format_reasoning(reasoning: str):
     return f"""
         <div style='
             background-color: #f0f2f6;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1rem 0;
             font-family: monospace;
             font-size: 0.9em;
-            line-height: 1.5;
+            line-height: 1.6;
             color: #4a5568;
         '>
             {formatted_steps}
@@ -78,7 +78,6 @@ def main():
                 if reasoning:
                     st.markdown("### 🧠 Reasoning Process")
                     st.markdown(format_reasoning(reasoning), unsafe_allow_html=True)
-                    st.markdown("### Response")
                 st.markdown(answer)
             else:
                 st.markdown(message["content"])
@@ -105,12 +104,17 @@ def main():
                 reasoning, answer = extract_reasoning(response)
 
                 if reasoning:
+                    # Clear the thinking placeholder
+                    message_placeholder.empty()
+
+                    # Show reasoning process
                     st.markdown("### 🧠 Reasoning Process")
                     st.markdown(format_reasoning(reasoning), unsafe_allow_html=True)
-                    st.markdown("### Response")
 
-                # Update message placeholder with answer
-                message_placeholder.markdown(answer)
+                # Show final response
+                if answer.strip():
+                    st.markdown("### Response")
+                    st.markdown(answer.strip())
 
                 # Add assistant response to chat history
                 st.session_state.messages.append({"role": "assistant", "content": response})
