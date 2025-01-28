@@ -1,7 +1,7 @@
 import os
 import time
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 from tavily import TavilyClient
 from utils import format_message
 
@@ -20,9 +20,15 @@ class SearchManager:
             logger.error(f"Failed to initialize Tavily client: {str(e)}")
             raise
 
-    def search(self, query: str, max_results: int = 3) -> List[Dict]:
+    def search(self, query: str, max_results: int = 3, topic: str = "general", days: Optional[int] = None) -> List[Dict]:
         """
         Perform a web search using Tavily API with proper error handling.
+
+        Args:
+            query: The search query string
+            max_results: Maximum number of results to return
+            topic: Search topic type ("general" or "news")
+            days: Number of days back to search (only for news topic)
         """
         if not query.strip():
             logger.warning("Empty query provided")
@@ -37,8 +43,19 @@ class SearchManager:
                 logger.info(f"Rate limiting: waiting {wait_time:.2f} seconds")
                 time.sleep(wait_time)
 
-            logger.info(f"Performing Tavily search for query: {query}")
-            response = self.client.search(query)
+            # Prepare search parameters
+            search_params = {
+                'query': query,
+                'max_results': max_results,
+                'topic': topic
+            }
+
+            # Only add days parameter for news searches
+            if topic == "news" and days is not None:
+                search_params['days'] = days
+
+            logger.info(f"Performing Tavily search with params: {search_params}")
+            response = self.client.search(**search_params)
             self.last_request_time = time.time()
 
             if not response or not response.get('results'):
@@ -53,8 +70,8 @@ class SearchManager:
             for result in response['results'][:max_results]:
                 formatted_results.append({
                     'title': result.get('title', '').strip(),
-                    'link': result.get('url', '#').strip(),
-                    'snippet': result.get('content', '').strip()
+                    'url': result.get('url', '#').strip(),
+                    'content': result.get('content', '').strip()
                 })
 
             logger.info(f"Successfully retrieved {len(formatted_results)} results")

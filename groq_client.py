@@ -114,6 +114,51 @@ After considering all these factors, I can now formulate a clear response.
         """Generates a streamed response showing the reasoning process."""
         return self.generate_response(messages)
 
+    def determine_search_topic(self, query: str) -> Dict:
+        """
+        Determine appropriate search parameters based on query context.
+        """
+        # First, ask the LLM to analyze the query
+        system_message = {
+            "role": "system",
+            "content": """Analyze the given query and determine the appropriate search parameters. 
+            Return a JSON object with the following format:
+            {
+                "topic": "news" or "general",
+                "days": number (only if topic is news, 1-30),
+                "reasoning": "explanation of why this topic was chosen"
+            }
+
+            Use "news" for:
+            - Recent events, sports games, current affairs
+            - Breaking news, latest updates
+            - Current market or business updates
+
+            Use "general" for:
+            - Historical information
+            - Conceptual questions
+            - How-to queries
+            - General knowledge
+            """
+        }
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    system_message,
+                    {"role": "user", "content": query}
+                ],
+                temperature=0.1
+            )
+
+            result = json.loads(response.choices[0].message.content)
+            logger.info(f"Search topic determination: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Error determining search topic: {e}")
+            return {"topic": "general", "reasoning": "Failed to determine topic, using default"}
+
     def generate_response_with_search(self, messages: List[Dict]) -> str:
         """Generates a response using web search results for enhanced accuracy."""
         try:
@@ -125,10 +170,18 @@ After considering all these factors, I can now formulate a clear response.
             if not query:
                 return "Please enter a message to start the conversation."
 
+            # Determine search parameters
+            search_params = self.determine_search_topic(query)
+            logger.info(f"Using search parameters: {search_params}")
+
             # Perform web search with better error handling
             try:
                 logger.info(f"Performing Tavily search for query: {query}")
-                search_results = self.search_manager.search(query)
+                search_results = self.search_manager.search(
+                    query,
+                    topic=search_params["topic"],
+                    days=search_params.get("days", 3) if search_params["topic"] == "news" else None
+                )
                 logger.info(f"Successfully retrieved {len(search_results) if search_results else 0} results")
 
                 if not search_results:
@@ -154,6 +207,9 @@ After considering all these factors, I can now formulate a clear response.
 First, analyze these search results to provide accurate, up-to-date information:
 
 {search_context}
+
+Search type used: {search_params["topic"].upper()} search
+Reason for search type: {search_params.get("reasoning", "Not specified")}
 
 For every response, follow these steps in order:
 
