@@ -22,8 +22,8 @@ class GroqClient:
         self.model = "mixtral-8x7b-32768"
         self.ddgs = DDGS()
 
-    def web_search(self, query: str, num_results: int = 3, timeout: int = 10) -> List[Dict]:
-        """Perform a web search using DuckDuckGo with timeout and retries."""
+    def web_search(self, query: str, num_results: int = 3) -> List[Dict]:
+        """Perform a web search using DuckDuckGo with retries."""
         try:
             print(f"Performing web search for query: {query}")
             results = []
@@ -33,8 +33,7 @@ class GroqClient:
                 try:
                     search_results = list(self.ddgs.text(
                         query, 
-                        max_results=num_results,
-                        timeout=timeout
+                        max_results=num_results
                     ))
 
                     for r in search_results:
