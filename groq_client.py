@@ -39,22 +39,26 @@ class GroqClient:
                         "Example: !search latest AI developments"
                     )
 
+                # Add delay before search to avoid rate limiting
+                time.sleep(2)
                 search_results = self.search_manager.search(search_query)
                 print(f"Search complete, found {len(search_results)} results")
 
                 if not search_results:
                     return (
                         "No search results found. Please try:\n"
-                        "1. A different search query\n"
-                        "2. More specific terms\n"
-                        "3. Using fewer words\n"
-                        "4. Removing special characters\n\n"
-                        "Example: Instead of '!search what's new in AI?', try '!search latest AI developments'"
+                        "1. Waiting a few minutes before searching again\n"
+                        "2. Using different search terms\n"
+                        "3. Making your query more specific\n"
+                        "Example: Instead of '!search AI', try '!search recent AI breakthroughs 2024'"
                     )
 
                 # Format search results
                 results_text = "Here are the search results:\n\n"
                 for i, result in enumerate(search_results, 1):
+                    if result['link'] == '#':  # Error message
+                        return result['snippet']
+
                     results_text += f"{i}. {result['title']}\n"
                     results_text += f"   {result['snippet']}\n"
                     results_text += f"   Link: {result['link']}\n\n"
@@ -68,8 +72,8 @@ class GroqClient:
                     "role": "system",
                     "content": (
                         "You are a helpful AI assistant. To search the web, use the '!search' "
-                        "command followed by your query (e.g. '!search latest AI developments' "
-                        "or '!search python programming tutorials')."
+                        "command followed by your query. If you encounter any issues with the search, "
+                        "try waiting a few minutes before searching again."
                     )
                 })
 

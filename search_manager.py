@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class SearchManager:
     def __init__(self):
         self.last_request_time = 0
-        self.min_request_interval = 2.0  # Increased to avoid rate limiting
+        self.min_request_interval = 5.0  # Increased interval to reduce rate limiting
         logger.info("SearchManager initialized")
 
     def search(self, query: str, max_results: int = 3) -> List[Dict]:
@@ -30,43 +30,43 @@ class SearchManager:
                 logger.info(f"Rate limiting: waiting {wait_time:.2f} seconds")
                 time.sleep(wait_time)
 
-            with DDGS() as ddgs:
-                logger.info(f"Performing search for query: {query}")
+            try:
+                with DDGS() as ddgs:
+                    logger.info(f"Performing search for query: {query}")
 
-                # Try with web search first
-                raw_results = []
-                try:
-                    # Use a generator to get results
-                    for r in ddgs.text(
+                    # Initialize results list
+                    raw_results = []
+
+                    # Use iterator to handle results one at a time
+                    for result in ddgs.text(
                         keywords=query,
-                        region='wt-wt',
+                        region='us-en',  # Use US region
                         safesearch='off',
-                        timelimit='y'  # Past year
+                        timelimit='y',  # Past year
+                        max_results=max_results
                     ):
-                        raw_results.append(r)
-                        if len(raw_results) >= max_results:
-                            break
+                        if isinstance(result, dict):
+                            raw_results.append(result)
+                            if len(raw_results) >= max_results:
+                                break
 
-                    logger.info(f"Raw results received: {len(raw_results)}")
-                except Exception as e:
-                    logger.error(f"Error during search: {str(e)}")
-                    return []
+                    self.last_request_time = time.time()
 
-                # Update last request time
-                self.last_request_time = time.time()
+                    if not raw_results:
+                        return [{
+                            'title': 'Search Unavailable',
+                            'link': '#',
+                            'snippet': ('The search service is currently unavailable. '
+                                      'This might be due to rate limiting or temporary service issues. '
+                                      'Please try again in a few minutes with a different search query.')
+                        }]
 
-                if not raw_results:
-                    logger.warning("No results found")
-                    return []
-
-                formatted_results = []
-                for result in raw_results:
-                    if isinstance(result, dict):
+                    # Format results
+                    formatted_results = []
+                    for result in raw_results:
                         title = result.get('title', '').strip()
                         link = result.get('link', '').strip()
                         snippet = result.get('body', '').strip()
-
-                        logger.debug(f"Processing result: {title}")
 
                         if all([title, link, snippet]):
                             formatted_results.append({
@@ -75,12 +75,22 @@ class SearchManager:
                                 'snippet': snippet
                             })
 
-                            if len(formatted_results) >= max_results:
-                                break
+                    logger.info(f"Successfully retrieved {len(formatted_results)} results")
+                    return formatted_results
 
-                logger.info(f"Returning {len(formatted_results)} formatted results")
-                return formatted_results[:max_results]
+            except Exception as e:
+                logger.error(f"Search error: {str(e)}")
+                return [{
+                    'title': 'Search Error',
+                    'link': '#',
+                    'snippet': ('Failed to perform search. This might be due to rate limiting. '
+                              'Please try again in a few minutes with a different search query.')
+                }]
 
         except Exception as e:
-            logger.error(f"Search error: {str(e)}")
-            return []
+            logger.error(f"Fatal search error: {str(e)}")
+            return [{
+                'title': 'System Error',
+                'link': '#',
+                'snippet': 'An unexpected error occurred. Please try again later.'
+            }]
