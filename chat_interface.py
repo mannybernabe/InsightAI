@@ -106,61 +106,64 @@ class ChatInterface:
                     response_placeholder = st.empty()
 
                     if st.session_state.show_reasoning:
+                        # Create an expander for reasoning
+                        reasoning_expander = st.expander("🤔 Reasoning Process", expanded=True)
+                        reasoning_content = reasoning_expander.empty()
+
                         # Stream the response with reasoning
                         typing_placeholder.markdown("🤔 Thinking and analyzing...")
                         response_stream = self.groq_client.generate_reasoning_stream(messages)
 
                         full_response = ""
-                        current_tag = ""
+                        current_thinking = ""
                         in_think_tag = False
-                        thinking_content = ""
 
                         for chunk in response_stream:
                             if chunk.choices[0].delta.content:
                                 content = chunk.choices[0].delta.content
                                 full_response += content
 
-                                # Check for think tag boundaries
+                                # Process think tags in chunks
                                 if "<think>" in content:
                                     in_think_tag = True
-                                    thinking_content = ""
-                                elif "</think>" in content:
+                                    current_thinking = ""
+                                elif "</think>" in content and in_think_tag:
                                     in_think_tag = False
-                                    # Display thinking in a special format
-                                    with st.expander("🤔 Reasoning Process", expanded=True):
-                                        st.markdown(thinking_content)
+                                    # Display complete thinking content
+                                    reasoning_content.markdown(current_thinking)
                                 elif in_think_tag:
-                                    thinking_content += content
-                                    # Show thinking in real-time in the expander
-                                    with st.expander("🤔 Reasoning Process", expanded=True):
-                                        st.markdown(thinking_content + "▌")
+                                    current_thinking += content
+                                    # Update thinking content in real-time
+                                    reasoning_content.markdown(current_thinking + "▌")
                                 else:
                                     # Regular response content
                                     clean_response, _ = self.extract_think_tags(full_response)
-                                    response_placeholder.markdown(
-                                        self.format_message_with_citations(clean_response) + "▌",
-                                        unsafe_allow_html=True
-                                    )
+                                    if clean_response.strip():
+                                        response_placeholder.markdown(
+                                            self.format_message_with_citations(clean_response) + "▌",
+                                            unsafe_allow_html=True
+                                        )
 
-                        # Final update of the response
-                        clean_response, thinking = self.extract_think_tags(full_response)
-                        if thinking:
-                            with st.expander("🤔 Reasoning Process", expanded=True):
-                                st.markdown(thinking)
+                        # Final update
+                        clean_response, final_thinking = self.extract_think_tags(full_response)
+                        if final_thinking:
+                            reasoning_content.markdown(final_thinking)
                         response_placeholder.markdown(
                             self.format_message_with_citations(clean_response),
                             unsafe_allow_html=True
                         )
                         st.session_state.current_response = clean_response
+
                     else:
-                        # Get complete response
+                        # Get complete response without streaming
                         typing_placeholder.markdown("🔍 Searching and analyzing...")
                         response = self.groq_client.generate_response(messages)
+                        clean_response, _ = self.extract_think_tags(response)
                         response_placeholder.markdown(
-                            self.format_message_with_citations(response),
+                            self.format_message_with_citations(clean_response),
                             unsafe_allow_html=True
                         )
-                        st.session_state.current_response = response
+                        st.session_state.current_response = clean_response
 
                 # Add the final response to chat history
                 self.add_message("assistant", st.session_state.current_response)
