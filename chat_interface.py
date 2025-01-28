@@ -98,38 +98,49 @@ class ChatInterface:
                     # Initialize the stream
                     response_stream = self.groq_client.generate_reasoning_stream(messages)
 
+                    def format_thinking(text):
+                        """Format thinking content with proper styling."""
+                        steps = []
+                        current_step = ""
+
+                        for line in text.strip().split('\n'):
+                            line = line.strip()
+                            # Check if this is a new numbered step
+                            if re.match(r'^\d+\.', line):
+                                if current_step:
+                                    steps.append(current_step)
+                                current_step = line
+                            elif current_step:
+                                # Append to current step
+                                current_step += " " + line
+                            else:
+                                # Start new step if none exists
+                                current_step = line
+
+                        # Add the last step
+                        if current_step:
+                            steps.append(current_step)
+
+                        formatted_steps = "\n".join(steps)
+                        return """
+                            <div style='
+                                background-color: #f0f2f6; 
+                                padding: 1.5rem; 
+                                border-radius: 8px; 
+                                margin-bottom: 1rem; 
+                                font-family: monospace; 
+                                white-space: pre-wrap;
+                                line-height: 1.6;
+                            '>
+                                {}
+                            </div>
+                        """.format(formatted_steps)
+
                     # Process the stream
                     full_response = ""
                     current_thinking = ""
                     in_think_tag = False
                     buffer = ""
-
-                    def format_thinking(text):
-                        """Format thinking content with proper styling."""
-                        steps = []
-                        for line in text.strip().split('\n'):
-                            # Handle numbered steps
-                            if re.match(r'^\d+\.', line.strip()):
-                                steps.append(line.strip())
-                            else:
-                                # Append to the last step if it exists
-                                if steps:
-                                    steps[-1] += " " + line.strip()
-                                else:
-                                    steps.append(line.strip())
-
-                        formatted_steps = "\n".join(steps)
-                        return """
-                            <div style='background-color: #f0f2f6; 
-                                      padding: 1.5rem; 
-                                      border-radius: 8px; 
-                                      margin-bottom: 1rem; 
-                                      font-family: monospace; 
-                                      white-space: pre-wrap;
-                                      line-height: 1.6;'>
-                                {}
-                            </div>
-                        """.format(formatted_steps)
 
                     for chunk in response_stream:
                         if not chunk.choices[0].delta.content:
@@ -139,8 +150,8 @@ class ChatInterface:
                         buffer += content
                         full_response += content
 
-                        # Process complete words or when specific markers are found
-                        if " " in buffer or "." in buffer or "\n" in buffer or ":" in buffer:
+                        # Check for complete tokens (words, punctuation, or tags)
+                        if re.search(r'[.!?\n]|\s+|</?think>', buffer):
                             if "<think>" in buffer:
                                 in_think_tag = True
                                 current_thinking = ""
@@ -153,8 +164,8 @@ class ChatInterface:
                                     st.markdown(format_thinking(current_thinking), unsafe_allow_html=True)
                                     st.write("---")
                             elif in_think_tag:
-                                # Clean up step numbers for better formatting
-                                if buffer.strip().startswith(str(len(current_thinking.split('\n')) + 1) + '.'):
+                                # Process numbered steps
+                                if re.match(r'^\d+\.', buffer.strip()):
                                     current_thinking += "\n" + buffer.strip()
                                 else:
                                     current_thinking += buffer
