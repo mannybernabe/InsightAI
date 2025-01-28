@@ -97,32 +97,31 @@ class ChatInterface:
 
         if st.session_state.search_results:
             st.sidebar.markdown("### Search Results")
-            for idx, msg in enumerate(st.session_state.search_results):
+            for msg in st.session_state.search_results:
                 with st.sidebar.container():
                     st.markdown(f"**{msg['role'].title()}** ({msg['timestamp']})")
                     st.markdown(msg['content'])
                     st.markdown("---")
 
-        # Main chat area with unique container key
+        # Main chat area with unique container
         with st.container():
             st.markdown("### Chat")
 
             # Process any pending message first
             self.process_pending_message()
 
-            # Display chat messages with unique keys
-            for idx, message in enumerate(st.session_state.messages):
-                with st.chat_message(message["role"], key=f"msg_{idx}"):
+            # Display chat messages
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
                     st.markdown(message["content"])
                     st.caption(f"Sent at {message['timestamp']}")
 
             # Show processing indicator
             if st.session_state.processing:
-                with st.chat_message("assistant", key="processing"):
+                with st.chat_message("assistant"):
                     st.write("Thinking...")
 
             # Chat input
             if message := st.chat_input("Type your message here...", 
-                                      key="chat_input",
-                                      disabled=st.session_state.processing):
+                                    disabled=st.session_state.processing):
                 self.on_message_submit(message)
