@@ -20,9 +20,9 @@ class GroqClient:
             self.client = OpenAI(
                 api_key=api_key,
                 base_url="https://api.groq.com/openai/v1",
-                timeout=30.0  # Add timeout
+                timeout=30.0
             )
-            self.model = "mixtral-8x7b-32768"
+            self.model = "deepseek-r1-distill-llama-70b"  # Updated model
             self.search_manager = SearchManager()
             logger.info("Initialized Groq client successfully")
         except Exception as e:
@@ -34,11 +34,9 @@ class GroqClient:
         thinking = None
         clean_text = text
 
-        # Find content within <think> tags
         think_match = re.search(r'<think>(.*?)</think>', text, re.DOTALL)
         if think_match:
             thinking = think_match.group(1).strip()
-            # Remove the think tags and their content from the response
             clean_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
 
         return clean_text, thinking
@@ -84,8 +82,9 @@ class GroqClient:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages_with_system,
-                    temperature=0.7,
+                    temperature=0.6,  # Adjusted for more focused responses
                     max_tokens=2000,
+                    top_p=0.95,  # Added for better response quality
                     timeout=30.0
                 )
 
@@ -105,4 +104,4 @@ class GroqClient:
 
     def generate_reasoning_stream(self, messages: List[Dict]) -> Generator:
         """Generates a streamed response showing the reasoning process."""
-        return self.generate_response(messages, stream=True)
+        return self.generate_response(messages)
