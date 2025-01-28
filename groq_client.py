@@ -137,9 +137,11 @@ After considering all these factors, I can now formulate a clear response.
                 else:
                     # Create a context from search results with proper null checks
                     search_results_text = []
-                    for i, result in enumerate(search_results[:3]):
-                        if isinstance(result, dict) and 'content' in result:
-                            search_results_text.append(f"Source {i+1}: {result['content']}")
+                    for i, result in enumerate(search_results[:3], 1):
+                        if isinstance(result, dict):
+                            content = result.get('content', 'No content available')
+                            url = result.get('url', '#')
+                            search_results_text.append(f"Source {i}:\nContent: {content}\nURL: {url}")
                     search_context = "\n\n".join(search_results_text) if search_results_text else "No relevant search results found."
             except Exception as e:
                 logger.error(f"Search failed: {str(e)}")
@@ -148,7 +150,7 @@ After considering all these factors, I can now formulate a clear response.
             # Add system message to encourage natural paragraph-based reasoning
             system_message = {
                 "role": "system",
-                "content": """You are a thoughtful AI assistant that explains your reasoning process naturally and clearly. 
+                "content": f"""You are a thoughtful AI assistant that explains your reasoning process naturally and clearly. 
 First, analyze these search results to provide accurate, up-to-date information:
 
 {search_context}
@@ -173,8 +175,11 @@ Source 2 provides additional context, specifically...
 After analyzing these search results, I can now formulate a comprehensive response.
 </think>
 
-[Your final response here]"""
+[Your final response here with proper source citations]"""
             }
+
+            # Store the raw search results for later use
+            self.last_search_results = search_results
 
             # Add system message to the beginning of the conversation
             messages_with_system = [system_message] + messages

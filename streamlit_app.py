@@ -64,21 +64,30 @@ def format_thinking(text):
 def display_search_results(search_results):
     """Display search results in a collapsible section."""
     if search_results:
-        with st.expander("🔍 Search Results", expanded=False):
+        with st.expander("🔍 Search Results", expanded=True):  # Set to True to show by default
             for i, result in enumerate(search_results, 1):
-                st.markdown(f"""
-                <div style='
-                    background-color: white;
-                    padding: 1rem;
-                    border-radius: 8px;
-                    margin-bottom: 0.5rem;
-                    border: 1px solid #e0e0e0;
-                '>
-                    <h4>Source {i}</h4>
-                    <p>{result.get('content', 'No content available')}</p>
-                    <p><small><em>URL: <a href="{result.get('url', '#')}">{result.get('url', 'No URL available')}</a></em></small></p>
-                </div>
-                """, unsafe_allow_html=True)
+                if isinstance(result, dict):
+                    content = result.get('content', 'No content available')
+                    url = result.get('url', '#')
+                    title = result.get('title', f'Source {i}')
+
+                    st.markdown(f"""
+                    <div style='
+                        background-color: white;
+                        padding: 1rem;
+                        border-radius: 8px;
+                        margin-bottom: 0.5rem;
+                        border: 1px solid #e0e0e0;
+                    '>
+                        <h4>{title}</h4>
+                        <p style='
+                            white-space: pre-wrap;
+                            font-size: 0.9em;
+                            color: #333;
+                        '>{content}</p>
+                        <p><small><em>Source: <a href="{url}" target="_blank">{url}</a></em></small></p>
+                    </div>
+                    """, unsafe_allow_html=True)
 
 def main():
     st.title("🤖 AI Research Assistant")
