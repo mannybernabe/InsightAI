@@ -16,38 +16,38 @@ class GradioChat:
             logger.error(f"Failed to initialize Groq client: {str(e)}")
             raise
 
-    def search(self, query: str, max_results: int = 3) -> str:
-        """
-        Perform a web search using Tavily API with proper error handling.
-        """
-        if not query.strip():
-            logger.warning("Empty query provided")
-            return "Please enter a message to start the conversation."
-
-        try:
-            logger.info(f"Processing query: {query}")
-            response = self.groq_client.generate_response([{"role": "user", "content": query}])
-            logger.info("Successfully generated response")
-            return response
-        except Exception as e:
-            error_msg = f"Search error: {str(e)}"
-            logger.error(error_msg)
-            return f"❌ {error_msg}"
-
     def chat(self, message, history):
-        """Main chat function that handles message processing and streaming."""
-        try:
-            # Simple non-streaming response first to verify basic functionality
-            logger.info(f"Processing message: {message}")
-            response = self.search(message)
-            logger.info("Generated response successfully")
-
-            # Update history and return
-            history.append((message, response))
+        """Main chat function that handles message processing."""
+        if not message.strip():
             return history, ""
+
+        try:
+            logger.info(f"Processing message: {message}")
+
+            # Convert history to messages format for GroqClient
+            messages = []
+            for h in history:
+                messages.extend([
+                    {"role": "user", "content": h[0]},
+                    {"role": "assistant", "content": h[1]}
+                ])
+
+            # Add current message
+            messages.append({"role": "user", "content": message})
+
+            # Get response from GroqClient
+            response = self.groq_client.generate_response(messages)
+            if isinstance(response, str):
+                logger.info("Got response from Groq")
+                # Update history with the new message pair
+                history.append((message, response))
+                return history, ""
+            else:
+                logger.error("Unexpected response type from Groq")
+                return history + [(message, "❌ Error: Unexpected response type")], ""
+
         except Exception as e:
             logger.error(f"Error in chat: {str(e)}")
-            # Return the error in the chat history
             return history + [(message, f"❌ Error: {str(e)}")], ""
 
 def create_interface():
@@ -60,31 +60,32 @@ def create_interface():
             gr.Markdown("# 🔍 AI Research Assistant")
 
             chatbot = gr.Chatbot(
+                [],
                 show_label=False,
-                avatar_images=("👤", "🤖"),
-                height=500
+                container=True,
+                height=400,
+                avatar_images=("👤", "🤖")
             )
 
             with gr.Row():
                 msg = gr.Textbox(
-                    placeholder="Ask anything...",
                     show_label=False,
-                    scale=9
+                    placeholder="Ask anything...",
+                    container=False
                 )
-                submit = gr.Button("Send", scale=1)
+                submit = gr.Button("Send")
+
+            # Set up event handlers
+            submit.click(
+                chat.chat,
+                inputs=[msg, chatbot],
+                outputs=[chatbot, msg]
+            ).then(lambda: "", None, msg)
 
             msg.submit(
                 chat.chat,
                 inputs=[msg, chatbot],
-                outputs=[chatbot, msg],
-                api_name=None
-            ).then(lambda: "", None, msg)
-
-            submit.click(
-                chat.chat,
-                inputs=[msg, chatbot],
-                outputs=[chatbot, msg],
-                api_name=None
+                outputs=[chatbot, msg]
             ).then(lambda: "", None, msg)
 
         return demo
@@ -97,8 +98,6 @@ if __name__ == "__main__":
     try:
         logger.info("Starting Gradio interface...")
         demo = create_interface()
-        # Removed queue() call to simplify the setup
-        logger.info("Launching Gradio app...")
         demo.launch(
             server_name="0.0.0.0",
             server_port=3000,
