@@ -31,38 +31,34 @@ class ChatInterface:
             message
         )
 
-    def handle_message(self, user_message: str) -> None:
-        """Handle new message from user."""
-        if not user_message.strip() or st.session_state.processing:
-            return
-
-        try:
-            # Set processing flag
-            st.session_state.processing = True
-
-            # Immediately add user message
+    def on_message_submit(self, user_message: str) -> None:
+        """Callback for when a message is submitted."""
+        if user_message.strip():
             self.add_message("user", user_message)
+            st.session_state.processing = True
+            st.session_state.pending_message = user_message
 
-            # Get API response
-            messages = [
-                {
-                    "role": msg["role"],
-                    "content": msg["content"]
-                } for msg in st.session_state.messages
-            ]
+    def process_pending_message(self) -> None:
+        """Process any pending message in the session state."""
+        if hasattr(st.session_state, 'pending_message') and st.session_state.processing:
+            try:
+                messages = [
+                    {
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    } for msg in st.session_state.messages
+                ]
 
-            # Get response from Groq
-            response = self.groq_client.generate_response(messages)
-
-            # Add assistant response
-            self.add_message("assistant", response)
-
-        except Exception as e:
-            error_msg = f"Error processing message: {str(e)}"
-            print(f"Error in handle_message: {error_msg}")
-            st.error(error_msg)
-        finally:
-            st.session_state.processing = False
+                # Get response from Groq
+                response = self.groq_client.generate_response(messages)
+                self.add_message("assistant", response)
+            except Exception as e:
+                error_msg = f"Error processing message: {str(e)}"
+                print(f"Error in process_pending_message: {error_msg}")
+                st.error(error_msg)
+            finally:
+                st.session_state.processing = False
+                delattr(st.session_state, 'pending_message')
 
     def handle_search(self, query: str) -> None:
         """Handle search request."""
@@ -107,6 +103,9 @@ class ChatInterface:
         # Main chat area
         st.markdown("### Chat")
 
+        # Process any pending message first
+        self.process_pending_message()
+
         # Display chat messages
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
@@ -120,4 +119,4 @@ class ChatInterface:
 
         # Chat input
         if message := st.chat_input("Type your message here...", disabled=st.session_state.processing):
-            self.handle_message(message)
+            self.on_message_submit(message)
