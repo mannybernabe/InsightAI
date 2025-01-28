@@ -8,4 +8,5 @@ dependencies = [
     "groq>=0.15.0",
     "openai>=1.60.2",
     "streamlit>=1.41.1",
+    "twilio>=9.4.3",
 ]
