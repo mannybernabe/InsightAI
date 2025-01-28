@@ -23,7 +23,7 @@ class GroqClient:
         self.ddgs = DDGS()
 
     def web_search(self, query: str, num_results: int = 3) -> List[Dict]:
-        """Perform a web search using DuckDuckGo with retries."""
+        """Perform web search using DuckDuckGo with retries."""
         try:
             print(f"Performing web search for query: {query}")
             results = []
@@ -31,10 +31,9 @@ class GroqClient:
 
             while retries > 0:
                 try:
-                    search_results = list(self.ddgs.text(
-                        query, 
-                        max_results=num_results
-                    ))
+                    print(f"Search attempt {4-retries} for query: {query}")
+                    search_results = list(self.ddgs.text(query, max_results=num_results))
+                    print(f"Raw search results: {search_results}")
 
                     for r in search_results:
                         print(f"Processing search result: {r}")
@@ -52,16 +51,19 @@ class GroqClient:
                                 })
 
                     if results:
+                        print(f"Successfully found {len(results)} results")
                         break
 
                     retries -= 1
                     if retries > 0:
+                        print(f"No results found, retrying... ({retries} attempts left)")
                         time.sleep(1)  # Wait before retry
 
                 except Exception as search_error:
-                    print(f"Search attempt error: {search_error}")
+                    print(f"Search attempt error: {str(search_error)}")
                     retries -= 1
                     if retries > 0:
+                        print(f"Retrying search after error... ({retries} attempts left)")
                         time.sleep(1)
                     continue
 
@@ -84,12 +86,20 @@ class GroqClient:
                 print(f"Processing web search request for: {search_query}")
 
                 if not search_query:
-                    return "Please provide a search query after the !search command."
+                    return "Please provide a search query after the !search command.\nExample: !search latest AI developments"
 
                 search_results = self.web_search(search_query)
+                print(f"Search complete, found {len(search_results)} results")
 
                 if not search_results:
-                    return "No search results found. Please try:\n1. A different search query\n2. More specific terms\n3. Checking your internet connection"
+                    return (
+                        "No search results found. Please try:\n"
+                        "1. A different search query\n"
+                        "2. More specific terms\n"
+                        "3. Using fewer words\n"
+                        "4. Removing special characters\n\n"
+                        "Example: Instead of '!search what's new in AI?', try '!search latest AI developments'"
+                    )
 
                 # Format search results
                 results_text = "Here are the search results:\n\n"
