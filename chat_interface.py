@@ -19,8 +19,6 @@ class ChatInterface:
         if "messages" not in st.session_state:
             st.session_state.messages = []
             print("Initialized empty messages list in session state")
-        if "show_reasoning" not in st.session_state:
-            st.session_state.show_reasoning = True  # Always show reasoning by default
         if "processing" not in st.session_state:
             st.session_state.processing = False
         if "current_response" not in st.session_state:
@@ -80,15 +78,6 @@ class ChatInterface:
             message
         )
 
-    def on_message_submit(self, user_message: str) -> None:
-        """Callback for when a message is submitted."""
-        if user_message.strip():
-            self.add_message("user", user_message)
-            st.session_state.processing = True
-            st.session_state.pending_message = user_message
-            st.session_state.current_response = ""
-            st.rerun()
-
     def process_pending_message(self) -> None:
         """Process any pending message in the session state."""
         if hasattr(st.session_state, 'pending_message') and st.session_state.processing:
@@ -100,71 +89,76 @@ class ChatInterface:
                     } for msg in st.session_state.messages
                 ]
 
-                # Show typing indicator and response area
+                # Create containers for different parts of the response
                 with st.chat_message("assistant"):
+                    # Create containers
                     typing_placeholder = st.empty()
-                    response_placeholder = st.empty()
+                    thinking_container = st.container()
+                    response_container = st.container()
 
-                    # Create a dedicated container for reasoning
-                    reasoning_container = st.container()
-
-                    # Stream the response with reasoning
-                    typing_placeholder.markdown("🤔 Analyzing step by step...")
+                    # Initialize the stream
+                    typing_placeholder.markdown("🤔 Thinking...")
                     response_stream = self.groq_client.generate_reasoning_stream(messages)
 
+                    # Process the stream
                     full_response = ""
                     current_thinking = ""
                     in_think_tag = False
 
                     for chunk in response_stream:
-                        if chunk.choices[0].delta.content:
-                            content = chunk.choices[0].delta.content
-                            full_response += content
+                        if not chunk.choices[0].delta.content:
+                            continue
 
-                            # Process think tags in chunks
-                            if "<think>" in content:
-                                in_think_tag = True
-                                current_thinking = ""
-                                with reasoning_container:
-                                    st.markdown("### 🧠 Reasoning Process")
-                            elif "</think>" in content and in_think_tag:
-                                in_think_tag = False
-                                # Display complete thinking content
-                                with reasoning_container:
-                                    st.markdown(current_thinking)
-                            elif in_think_tag:
-                                current_thinking += content
-                                # Update thinking content in real-time
-                                with reasoning_container:
-                                    st.markdown(current_thinking + "▌")
-                            else:
-                                # Regular response content
-                                clean_response, _ = self.extract_think_tags(full_response)
-                                if clean_response.strip():
-                                    response_placeholder.markdown(
+                        content = chunk.choices[0].delta.content
+                        full_response += content
+
+                        # Check for think tags
+                        if "<think>" in content:
+                            in_think_tag = True
+                            with thinking_container:
+                                st.markdown("### 🧠 Reasoning Process")
+                                st.write("---")
+                        elif "</think>" in content:
+                            in_think_tag = False
+                            with thinking_container:
+                                st.markdown(current_thinking)
+                                st.write("---")
+                        elif in_think_tag:
+                            current_thinking += content
+                            with thinking_container:
+                                st.markdown(current_thinking + "▌")
+                        else:
+                            # Regular response content
+                            clean_response, _ = self.extract_think_tags(full_response)
+                            if clean_response.strip():
+                                with response_container:
+                                    st.markdown(
                                         self.format_message_with_citations(clean_response) + "▌",
                                         unsafe_allow_html=True
                                     )
 
                     # Final update
+                    typing_placeholder.empty()
                     clean_response, final_thinking = self.extract_think_tags(full_response)
+
+                    # Update thinking container one last time if needed
                     if final_thinking:
-                        with reasoning_container:
+                        with thinking_container:
                             st.markdown("### 🧠 Reasoning Process")
                             st.markdown(final_thinking)
+                            st.write("---")
 
-                    response_placeholder.markdown(
-                        self.format_message_with_citations(clean_response),
-                        unsafe_allow_html=True
-                    )
+                    # Update response container
+                    with response_container:
+                        st.markdown(
+                            self.format_message_with_citations(clean_response),
+                            unsafe_allow_html=True
+                        )
+
                     st.session_state.current_response = clean_response
 
                 # Add the final response to chat history
                 self.add_message("assistant", st.session_state.current_response)
-
-                # Remove typing indicator and rerun
-                typing_placeholder.empty()
-                st.rerun()
 
             except Exception as e:
                 error_msg = f"Error processing message: {str(e)}"
@@ -174,6 +168,15 @@ class ChatInterface:
                 st.session_state.processing = False
                 if hasattr(st.session_state, 'pending_message'):
                     delattr(st.session_state, 'pending_message')
+
+    def on_message_submit(self, user_message: str):
+        """Handle message submission."""
+        if user_message.strip():
+            self.add_message("user", user_message)
+            st.session_state.processing = True
+            st.session_state.pending_message = user_message
+            st.session_state.current_response = ""
+            st.rerun()
 
     def create_interface(self):
         """Creates the chat interface using Streamlit components."""
@@ -197,7 +200,7 @@ class ChatInterface:
             # Show processing indicator
             if st.session_state.processing:
                 with st.chat_message("assistant"):
-                    st.write("🤔 Analyzing step by step...")
+                    st.write("🤔 Analyzing your query...")
 
             # Chat input
             if message := st.chat_input(

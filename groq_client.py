@@ -18,6 +18,7 @@ class GroqClient:
                 api_key=api_key,
                 base_url="https://api.groq.com/openai/v1"
             )
+            print("Initialized Groq client successfully")
         except Exception as e:
             raise ValueError(f"Failed to initialize Groq client. Please verify your API key. Error: {str(e)}")
 
