@@ -20,6 +20,10 @@ class GradioChat:
         """
         Perform a web search using Tavily API with proper error handling.
         """
+        if not query.strip():
+            logger.warning("Empty query provided")
+            return "Please enter a message to start the conversation."
+
         try:
             logger.info(f"Processing query: {query}")
             response = self.groq_client.generate_response([{"role": "user", "content": query}])
@@ -37,10 +41,14 @@ class GradioChat:
             logger.info(f"Processing message: {message}")
             response = self.search(message)
             logger.info("Generated response successfully")
-            return [(message, response)], ""
+
+            # Update history and return
+            history.append((message, response))
+            return history, ""
         except Exception as e:
             logger.error(f"Error in chat: {str(e)}")
-            return [(message, f"❌ Error: {str(e)}")], ""
+            # Return the error in the chat history
+            return history + [(message, f"❌ Error: {str(e)}")], ""
 
 def create_interface():
     try:
@@ -68,14 +76,16 @@ def create_interface():
             msg.submit(
                 chat.chat,
                 inputs=[msg, chatbot],
-                outputs=[chatbot, msg]
-            )
+                outputs=[chatbot, msg],
+                api_name=None
+            ).then(lambda: "", None, msg)
 
             submit.click(
                 chat.chat,
                 inputs=[msg, chatbot],
-                outputs=[chatbot, msg]
-            )
+                outputs=[chatbot, msg],
+                api_name=None
+            ).then(lambda: "", None, msg)
 
         return demo
 
