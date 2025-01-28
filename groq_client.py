@@ -125,14 +125,22 @@ After considering all these factors, I can now formulate a clear response.
             if not query:
                 return "Please enter a message to start the conversation."
 
-            # Perform web search
-            search_results = self.search_manager.search(query)
-
-            # Create a context from search results
-            search_context = "\n\n".join([
-                f"Source {i+1}: {result['content']}"
-                for i, result in enumerate(search_results[:3])
-            ])
+            # Perform web search with better error handling
+            try:
+                search_results = self.search_manager.search(query)
+                if not search_results:
+                    logger.warning("No search results found")
+                    search_context = "No relevant search results found."
+                else:
+                    # Create a context from search results with proper null checks
+                    search_results_text = []
+                    for i, result in enumerate(search_results[:3]):
+                        if isinstance(result, dict) and 'content' in result:
+                            search_results_text.append(f"Source {i+1}: {result['content']}")
+                    search_context = "\n\n".join(search_results_text) if search_results_text else "No relevant search results found."
+            except Exception as e:
+                logger.error(f"Search failed: {str(e)}")
+                return self.generate_response(messages)  # Fallback to normal response
 
             # Add system message with search results
             system_message = {
@@ -162,32 +170,32 @@ Combining this with information from Source 2...
 After considering all the available information, I can now provide a comprehensive response.
 </think>
 
-[Your final response here with citations [1], [2], etc.]
-
-References:
-[1] {search_results[0]['url'] if search_results else 'No source available'}
-[2] {search_results[1]['url'] if len(search_results) > 1 else 'No source available'}
-[3] {search_results[2]['url'] if len(search_results) > 2 else 'No source available'}"""
+[Your final response here with citations [1], [2], etc.]"""
             }
 
             # Add system message to the beginning of the conversation
             messages_with_system = [system_message] + messages
 
-            # Generate response with retry logic
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages_with_system,
-                temperature=0.6,
-                max_tokens=2000,
-                top_p=0.95,
-                timeout=30.0
-            )
+            try:
+                # Generate response with retry logic
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages_with_system,
+                    temperature=0.6,
+                    max_tokens=2000,
+                    top_p=0.95,
+                    timeout=30.0
+                )
 
-            if not response or not response.choices:
-                return "Sorry, I couldn't generate a response. Please try again."
+                if not response or not response.choices:
+                    return "Sorry, I couldn't generate a response. Please try again."
 
-            return response.choices[0].message.content
+                return response.choices[0].message.content
+
+            except Exception as e:
+                logger.error(f"API call failed: {str(e)}")
+                return self.generate_response(messages)  # Fallback to normal response
 
         except Exception as e:
             logger.error(f"Error in generate_response_with_search: {str(e)}")
-            return f"I'm having trouble connecting right now. Please try again in a moment. Error: {str(e)}"
+            return "I encountered an error while searching. Let me try answering without search results."
