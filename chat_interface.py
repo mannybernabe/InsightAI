@@ -40,13 +40,11 @@ class ChatInterface:
 
     def format_message_with_citations(self, content: str) -> str:
         """Format message content with clickable citations and proper styling."""
-        # Check if the message contains references section
         if "References:" in content:
-            # Split content into main text and references
             main_content, references = content.split("References:", 1)
 
             # Format citations in main content
-            for i in range(10):  # Assuming max 10 citations
+            for i in range(10):
                 citation = f"[{i}]"
                 if citation in main_content:
                     main_content = main_content.replace(
@@ -58,7 +56,6 @@ class ChatInterface:
             formatted_refs = ""
             for ref in references.strip().split('\n'):
                 if ref.strip():
-                    # Extract URL if present
                     if ']' in ref and 'http' in ref:
                         ref_num = ref.split(']')[0] + ']'
                         url = ref.split('http')[1].strip()
@@ -123,28 +120,31 @@ class ChatInterface:
                                 with thinking_container:
                                     st.markdown("### 🧠 Reasoning Process")
                                     st.write("---")
-                            elif "</think>" in buffer:
+                            elif "</think>" in buffer and in_think_tag:
                                 in_think_tag = False
                                 with thinking_container:
-                                    st.markdown(current_thinking)
+                                    st.markdown("""
+                                        <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 5px;'>
+                                            {}
+                                        </div>
+                                        """.format(current_thinking), unsafe_allow_html=True)
                                     st.write("---")
                             elif in_think_tag:
                                 current_thinking += buffer
                                 with thinking_container:
                                     st.markdown("""
                                         <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 5px;'>
-                                            {}\n▌
+                                            {}
                                         </div>
-                                    """.format(current_thinking), unsafe_allow_html=True)
+                                        """.format(current_thinking), unsafe_allow_html=True)
                             else:
                                 # Regular response content
                                 clean_response, _ = self.extract_think_tags(full_response)
                                 if clean_response.strip():
-                                    with response_container:
-                                        st.markdown(
-                                            self.format_message_with_citations(clean_response + "▌"),
-                                            unsafe_allow_html=True
-                                        )
+                                    response_container.markdown(
+                                        self.format_message_with_citations(clean_response + "▌"),
+                                        unsafe_allow_html=True
+                                    )
                             buffer = ""
 
                     # Final update
@@ -159,7 +159,7 @@ class ChatInterface:
                                 <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 5px;'>
                                     {}
                                 </div>
-                            """.format(final_thinking), unsafe_allow_html=True)
+                                """.format(final_thinking), unsafe_allow_html=True)
                             st.write("---")
 
                     # Update response container
@@ -209,7 +209,6 @@ class ChatInterface:
                     else:
                         # Display user messages normally
                         st.markdown(message["content"])
-                    st.caption(f"Sent at {message['timestamp']}")
 
             # Show processing indicator
             if st.session_state.processing:
