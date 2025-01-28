@@ -20,22 +20,30 @@ class ChatInterface:
             print("Initialized empty messages list in session state")
         if "search_results" not in st.session_state:
             st.session_state.search_results = []
+        if "processing" not in st.session_state:
+            st.session_state.processing = False
 
-    def handle_message(self, message: str) -> None:
+    def add_message(self, role: str, content: str):
+        """Add a message to the chat history."""
+        message = format_message(role, content)
+        st.session_state.messages = manage_chat_history(
+            st.session_state.messages,
+            message
+        )
+
+    def handle_message(self, user_message: str) -> None:
         """Handle new message from user."""
-        if not message.strip():
+        if not user_message.strip() or st.session_state.processing:
             return
 
-        print(f"Processing new message: {message[:50]}...")
         try:
-            # Add user message to history
-            user_message = format_message("user", message)
-            st.session_state.messages = manage_chat_history(
-                st.session_state.messages,
-                user_message
-            )
+            # Set processing flag
+            st.session_state.processing = True
 
-            # Format messages for API
+            # Immediately add user message
+            self.add_message("user", user_message)
+
+            # Get API response
             messages = [
                 {
                     "role": msg["role"],
@@ -43,22 +51,18 @@ class ChatInterface:
                 } for msg in st.session_state.messages
             ]
 
-            print(f"Sending {len(messages)} messages to Groq API")
-
             # Get response from Groq
             response = self.groq_client.generate_response(messages)
-            print(f"Received response from Groq: {response[:50]}...")
 
-            # Add assistant response to history
-            st.session_state.messages = manage_chat_history(
-                st.session_state.messages,
-                format_message("assistant", response)
-            )
+            # Add assistant response
+            self.add_message("assistant", response)
 
         except Exception as e:
             error_msg = f"Error processing message: {str(e)}"
             print(f"Error in handle_message: {error_msg}")
             st.error(error_msg)
+        finally:
+            st.session_state.processing = False
 
     def handle_search(self, query: str) -> None:
         """Handle search request."""
@@ -67,11 +71,9 @@ class ChatInterface:
             return
 
         try:
-            # Search messages
             results = search_messages(st.session_state.messages, query)
             print(f"Found {len(results)} search results for query: {query}")
 
-            # Generate summary if results found
             if results:
                 try:
                     summary = self.groq_client.generate_search_response(query, results)
@@ -111,7 +113,11 @@ class ChatInterface:
                 st.markdown(message["content"])
                 st.caption(f"Sent at {message['timestamp']}")
 
-        # Chat input with simple key
-        if message := st.chat_input("Type your message here..."):
-            print("Received new chat input")
+        # Show processing indicator
+        if st.session_state.processing:
+            with st.chat_message("assistant"):
+                st.write("Thinking...")
+
+        # Chat input
+        if message := st.chat_input("Type your message here...", disabled=st.session_state.processing):
             self.handle_message(message)
