@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from openai import OpenAI
 from typing import List, Dict
 from duckduckgo_search import DDGS
@@ -20,51 +21,59 @@ class GroqClient:
             raise ValueError(f"Failed to initialize Groq client. Please verify your API key. Error: {str(e)}")
 
         self.model = "mixtral-8x7b-32768"
-        self.ddgs = DDGS()
 
     def web_search(self, query: str, num_results: int = 3) -> List[Dict]:
-        """Perform web search using DuckDuckGo with retries."""
+        """Perform web search using DuckDuckGo with fresh session."""
         try:
             print(f"Performing web search for query: {query}")
             results = []
             retries = 3
+            retry_delay = 2  # seconds between retries
 
             while retries > 0:
                 try:
-                    print(f"Search attempt {4-retries} for query: {query}")
-                    search_results = list(self.ddgs.text(query, max_results=num_results))
-                    print(f"Raw search results: {search_results}")
+                    # Create a fresh DDGS session for each attempt
+                    with DDGS() as ddgs:
+                        print(f"Search attempt {4-retries} for query: {query}")
+                        search_results = list(ddgs.text(
+                            query,
+                            max_results=num_results,
+                            region='wt-wt',  # Worldwide results
+                            safesearch='moderate'  # Default safe search
+                        ))
+                        print(f"Raw search results: {search_results}")
 
-                    for r in search_results:
-                        print(f"Processing search result: {r}")
-                        if isinstance(r, dict):
-                            # Extract and validate fields
-                            title = r.get('title', '').strip()
-                            link = r.get('link', '').strip()
-                            body = r.get('body', r.get('snippet', '')).strip()
+                        if search_results:
+                            for r in search_results:
+                                if isinstance(r, dict):
+                                    title = r.get('title', '').strip()
+                                    link = r.get('link', '').strip()
+                                    body = r.get('body', r.get('snippet', '')).strip()
 
-                            if title and link and body:
-                                results.append({
-                                    'title': title,
-                                    'link': link,
-                                    'snippet': body
-                                })
+                                    if title and link and body:
+                                        results.append({
+                                            'title': title,
+                                            'link': link,
+                                            'snippet': body
+                                        })
 
-                    if results:
-                        print(f"Successfully found {len(results)} results")
-                        break
+                            if results:
+                                print(f"Successfully found {len(results)} results")
+                                break
 
                     retries -= 1
                     if retries > 0:
-                        print(f"No results found, retrying... ({retries} attempts left)")
-                        time.sleep(1)  # Wait before retry
+                        print(f"No valid results found, retrying in {retry_delay}s... ({retries} attempts left)")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
 
                 except Exception as search_error:
                     print(f"Search attempt error: {str(search_error)}")
                     retries -= 1
                     if retries > 0:
-                        print(f"Retrying search after error... ({retries} attempts left)")
-                        time.sleep(1)
+                        print(f"Retrying search after error in {retry_delay}s... ({retries} attempts left)")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
                     continue
 
             if not results:
@@ -86,7 +95,10 @@ class GroqClient:
                 print(f"Processing web search request for: {search_query}")
 
                 if not search_query:
-                    return "Please provide a search query after the !search command.\nExample: !search latest AI developments"
+                    return (
+                        "Please provide a search query after the !search command.\n"
+                        "Example: !search latest AI developments"
+                    )
 
                 search_results = self.web_search(search_query)
                 print(f"Search complete, found {len(search_results)} results")
