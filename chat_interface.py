@@ -1,7 +1,7 @@
 import streamlit as st
 from typing import List, Dict
 from groq_client import GroqClient
-from utils import manage_chat_history, format_message, search_messages
+from utils import manage_chat_history, format_message, search_messages, SearchResult
 
 class ChatInterface:
     def __init__(self):
@@ -63,23 +63,39 @@ class ChatInterface:
                 if hasattr(st.session_state, 'pending_message'):
                     delattr(st.session_state, 'pending_message')
 
-    def handle_search(self, query: str) -> None:
-        """Handle search request."""
+    def handle_search(self, query: str, role_filter: str = None, time_filter: str = None) -> None:
+        """Handle search request with enhanced filtering."""
         if not query.strip():
             st.session_state.search_results = []
             return
 
         try:
-            results = search_messages(st.session_state.messages, query)
+            # Perform enhanced search
+            results = search_messages(
+                st.session_state.messages,
+                query,
+                role_filter=role_filter,
+                time_filter=time_filter
+            )
             print(f"Found {len(results)} search results for query: {query}")
 
             if results:
+                # Convert SearchResults to dict format for summary generation
+                result_messages = [r.message for r in results]
                 try:
-                    summary = self.groq_client.generate_search_response(query, results)
-                    results.insert(0, format_message("system", f"Summary: {summary}"))
+                    summary = self.groq_client.generate_search_response(query, result_messages)
+                    results.insert(0, SearchResult(
+                        message=format_message("system", f"Summary: {summary}"),
+                        relevance_score=1.0,
+                        matched_terms=[]
+                    ))
                 except Exception as e:
                     print(f"Error generating search summary: {str(e)}")
-                    results.insert(0, format_message("system", f"Error generating summary: {str(e)}"))
+                    results.insert(0, SearchResult(
+                        message=format_message("system", f"Error generating summary: {str(e)}"),
+                        relevance_score=1.0,
+                        matched_terms=[]
+                    ))
 
             st.session_state.search_results = results
 
@@ -90,16 +106,40 @@ class ChatInterface:
 
     def create_interface(self):
         """Creates the chat interface using Streamlit components."""
-        st.sidebar.title("Search Messages")
-        search_query = st.sidebar.text_input("Enter search term", key="search_input")
-        if search_query:
-            self.handle_search(search_query)
+        # Advanced Search UI in sidebar
+        st.sidebar.title("Advanced Search")
 
+        # Search input
+        search_query = st.sidebar.text_input("Search messages", key="search_input")
+
+        # Filters
+        role_filter = st.sidebar.selectbox(
+            "Filter by role",
+            options=[None, "user", "assistant"],
+            format_func=lambda x: "All roles" if x is None else x.capitalize()
+        )
+
+        time_filter = st.sidebar.selectbox(
+            "Time range",
+            options=[None, "last_hour", "last_day", "last_week"],
+            format_func=lambda x: "All time" if x is None else x.replace("_", " ").capitalize()
+        )
+
+        # Search button
+        if st.sidebar.button("Search"):
+            self.handle_search(search_query, role_filter, time_filter)
+
+        # Display search results
         if st.session_state.search_results:
             st.sidebar.markdown("### Search Results")
-            for msg in st.session_state.search_results:
+            for result in st.session_state.search_results:
                 with st.sidebar.container():
+                    msg = result.message
                     st.markdown(f"**{msg['role'].title()}** ({msg['timestamp']})")
+                    if result.matched_terms:
+                        st.markdown(f"*Matched terms: {', '.join(result.matched_terms)}*")
+                    if result.relevance_score < 1:  # Don't show for system messages
+                        st.markdown(f"*Relevance: {result.relevance_score:.2%}*")
                     st.markdown(msg['content'])
                     st.markdown("---")
 
