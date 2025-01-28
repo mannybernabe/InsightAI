@@ -39,18 +39,19 @@ class GroqClient:
                         "Example: !search latest AI developments"
                     )
 
-                # Add delay before search to avoid rate limiting
-                time.sleep(2)
+                # Add delay between searches
+                time.sleep(3)
                 search_results = self.search_manager.search(search_query)
                 print(f"Search complete, found {len(search_results)} results")
 
                 if not search_results:
                     return (
-                        "No search results found. Please try:\n"
-                        "1. Waiting a few minutes before searching again\n"
-                        "2. Using different search terms\n"
-                        "3. Making your query more specific\n"
-                        "Example: Instead of '!search AI', try '!search recent AI breakthroughs 2024'"
+                        "No results found. Please try:\n"
+                        "1. Using simpler search terms (1-2 keywords)\n"
+                        "2. Waiting a few minutes before searching again\n"
+                        "3. Removing special characters\n\n"
+                        "Example: Instead of '!search latest artificial intelligence developments 2024', "
+                        "try '!search AI news'"
                     )
 
                 # Format search results
@@ -72,8 +73,8 @@ class GroqClient:
                     "role": "system",
                     "content": (
                         "You are a helpful AI assistant. To search the web, use the '!search' "
-                        "command followed by your query. If you encounter any issues with the search, "
-                        "try waiting a few minutes before searching again."
+                        "command followed by 1-2 keywords. For example: '!search AI news'. "
+                        "If search fails, try again with fewer words after waiting a few minutes."
                     )
                 })
 
