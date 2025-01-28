@@ -113,3 +113,81 @@ After considering all these factors, I can now formulate a clear response.
     def generate_reasoning_stream(self, messages: List[Dict]) -> Generator:
         """Generates a streamed response showing the reasoning process."""
         return self.generate_response(messages)
+
+    def generate_response_with_search(self, messages: List[Dict]) -> str:
+        """Generates a response using web search results for enhanced accuracy."""
+        try:
+            if not messages or not isinstance(messages, list):
+                return "Invalid message format. Please try again."
+
+            # Get the user's query from the last message
+            query = messages[-1]["content"].strip()
+            if not query:
+                return "Please enter a message to start the conversation."
+
+            # Perform web search
+            search_results = self.search_manager.search(query)
+
+            # Create a context from search results
+            search_context = "\n\n".join([
+                f"Source {i+1}: {result['content']}"
+                for i, result in enumerate(search_results[:3])
+            ])
+
+            # Add system message with search results
+            system_message = {
+                "role": "system",
+                "content": f"""You are a thoughtful AI assistant that explains your reasoning process naturally and clearly. 
+Use the following search results to inform your response:
+
+{search_context}
+
+For every response:
+
+1. Write your thoughts in clear, well-spaced paragraphs under a <think> tag
+2. Start with "Okay, so the user is asking..." and explain your approach
+3. Break down your reasoning into natural thoughts
+4. Reference the search results when relevant
+5. Use a conversational tone throughout
+
+Example format:
+
+<think>
+Okay, so the user is asking about X. Let me analyze the search results.
+
+Based on Source 1, I can see that...
+
+Combining this with information from Source 2...
+
+After considering all the available information, I can now provide a comprehensive response.
+</think>
+
+[Your final response here with citations [1], [2], etc.]
+
+References:
+[1] {search_results[0]['url'] if search_results else 'No source available'}
+[2] {search_results[1]['url'] if len(search_results) > 1 else 'No source available'}
+[3] {search_results[2]['url'] if len(search_results) > 2 else 'No source available'}"""
+            }
+
+            # Add system message to the beginning of the conversation
+            messages_with_system = [system_message] + messages
+
+            # Generate response with retry logic
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages_with_system,
+                temperature=0.6,
+                max_tokens=2000,
+                top_p=0.95,
+                timeout=30.0
+            )
+
+            if not response or not response.choices:
+                return "Sorry, I couldn't generate a response. Please try again."
+
+            return response.choices[0].message.content
+
+        except Exception as e:
+            logger.error(f"Error in generate_response_with_search: {str(e)}")
+            return f"I'm having trouble connecting right now. Please try again in a moment. Error: {str(e)}"

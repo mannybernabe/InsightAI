@@ -19,6 +19,9 @@ def initialize_chat():
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
+    if "search_enabled" not in st.session_state:
+        st.session_state.search_enabled = False
+
     if "groq_client" not in st.session_state:
         try:
             st.session_state.groq_client = GroqClient()
@@ -61,6 +64,13 @@ def main():
     # Initialize chat state and client
     initialize_chat()
 
+    # Add search toggle at the top
+    st.session_state.search_enabled = st.toggle(
+        "Enable web search",
+        help="When enabled, the AI will search the web to provide more accurate and up-to-date information.",
+        value=st.session_state.search_enabled
+    )
+
     # Display chat messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
@@ -88,8 +98,17 @@ def main():
                 message_placeholder = st.empty()
                 message_placeholder.markdown("🤔 Thinking...")
 
-                # Generate response
-                response = st.session_state.groq_client.generate_response(st.session_state.messages)
+                # Generate response with search if enabled
+                if st.session_state.search_enabled:
+                    # Use search-enabled response generation
+                    response = st.session_state.groq_client.generate_response_with_search(
+                        st.session_state.messages
+                    )
+                else:
+                    # Use standard response generation
+                    response = st.session_state.groq_client.generate_response(
+                        st.session_state.messages
+                    )
 
                 # Extract and display reasoning and answer separately
                 reasoning, answer = extract_reasoning(response)
