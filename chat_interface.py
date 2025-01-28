@@ -100,10 +100,18 @@ class ChatInterface:
 
                     # Process the stream
                     full_response = ""
-                    current_response = ""
                     current_thinking = ""
                     in_think_tag = False
                     buffer = ""
+
+                    def format_thinking(text):
+                        """Format thinking content with proper styling."""
+                        return """
+                            <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 5px; 
+                                      margin-bottom: 1rem; font-family: monospace;'>
+                                {}
+                            </div>
+                        """.format(text)
 
                     for chunk in response_stream:
                         if not chunk.choices[0].delta.content:
@@ -113,30 +121,27 @@ class ChatInterface:
                         buffer += content
                         full_response += content
 
-                        # Process complete words/phrases
-                        if " " in buffer or "." in buffer or "\n" in buffer:
+                        # Process complete words or when specific markers are found
+                        if " " in buffer or "." in buffer or "\n" in buffer or ":" in buffer:
                             if "<think>" in buffer:
                                 in_think_tag = True
+                                current_thinking = ""
                                 with thinking_container:
                                     st.markdown("### 🧠 Reasoning Process")
                                     st.write("---")
                             elif "</think>" in buffer and in_think_tag:
                                 in_think_tag = False
                                 with thinking_container:
-                                    st.markdown("""
-                                        <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 5px;'>
-                                            {}
-                                        </div>
-                                        """.format(current_thinking), unsafe_allow_html=True)
+                                    st.markdown(format_thinking(current_thinking), unsafe_allow_html=True)
                                     st.write("---")
                             elif in_think_tag:
-                                current_thinking += buffer
+                                # Clean up step numbers for better formatting
+                                if buffer.strip().startswith(str(len(current_thinking.split('\n')) + 1) + '.'):
+                                    current_thinking += "\n" + buffer.strip()
+                                else:
+                                    current_thinking += buffer
                                 with thinking_container:
-                                    st.markdown("""
-                                        <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 5px;'>
-                                            {}
-                                        </div>
-                                        """.format(current_thinking), unsafe_allow_html=True)
+                                    st.markdown(format_thinking(current_thinking), unsafe_allow_html=True)
                             else:
                                 # Regular response content
                                 clean_response, _ = self.extract_think_tags(full_response)
@@ -155,19 +160,14 @@ class ChatInterface:
                     if final_thinking:
                         with thinking_container:
                             st.markdown("### 🧠 Reasoning Process")
-                            st.markdown("""
-                                <div style='background-color: #f0f2f6; padding: 1rem; border-radius: 5px;'>
-                                    {}
-                                </div>
-                                """.format(final_thinking), unsafe_allow_html=True)
+                            st.markdown(format_thinking(final_thinking), unsafe_allow_html=True)
                             st.write("---")
 
                     # Update response container
-                    with response_container:
-                        st.markdown(
-                            self.format_message_with_citations(clean_response),
-                            unsafe_allow_html=True
-                        )
+                    response_container.markdown(
+                        self.format_message_with_citations(clean_response),
+                        unsafe_allow_html=True
+                    )
 
                     st.session_state.current_response = clean_response
 
