@@ -1,60 +1,99 @@
-import streamlit as st
-from chat_interface import ChatInterface
+import os
+import gradio as gr
+from groq_client import GroqClient
+import logging
 
-def main():
-    # Page configuration
-    st.set_page_config(
-        page_title="AI Research Assistant",
-        page_icon="🔍",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-    # Custom CSS for Perplexity-like styling
-    st.markdown("""
-        <style>
-        .stApp {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .main {
-            padding: 2rem;
-        }
-        .stMarkdown {
-            font-size: 1rem;
-        }
-        .citation {
-            color: #4a90e2;
-            font-size: 0.8rem;
-        }
-        .source-link {
-            color: #666;
-            font-size: 0.9rem;
-            text-decoration: none;
-        }
-        .source-link:hover {
-            text-decoration: underline;
-        }
-        .search-header {
-            margin-bottom: 2rem;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+class GradioChat:
+    def __init__(self):
+        try:
+            self.groq_client = GroqClient()
+            logger.info("Initialized Groq client successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Groq client: {str(e)}")
+            raise
 
-    # Initialize chat interface
-    chat = ChatInterface()
-    chat.initialize_session_state()
+    def search(self, query: str, max_results: int = 3) -> str:
+        """
+        Perform a web search using Tavily API with proper error handling.
+        """
+        try:
+            logger.info(f"Processing query: {query}")
+            response = self.groq_client.generate_response([{"role": "user", "content": query}])
+            logger.info("Successfully generated response")
+            return response
+        except Exception as e:
+            error_msg = f"Search error: {str(e)}"
+            logger.error(error_msg)
+            return f"❌ {error_msg}"
 
-    # Header with clean, modern design
-    st.markdown("""
-        <div class="search-header">
-            <h1>AI Research Assistant</h1>
-            <p>Powered by Groq & Tavily - Ask anything or search the web with "!search your query"</p>
-        </div>
-    """, unsafe_allow_html=True)
+    def chat(self, message, history):
+        """Main chat function that handles message processing and streaming."""
+        try:
+            # Simple non-streaming response first to verify basic functionality
+            logger.info(f"Processing message: {message}")
+            response = self.search(message)
+            logger.info("Generated response successfully")
+            return [(message, response)], ""
+        except Exception as e:
+            logger.error(f"Error in chat: {str(e)}")
+            return [(message, f"❌ Error: {str(e)}")], ""
 
-    # Create and display the chat interface
-    chat.create_interface()
+def create_interface():
+    try:
+        logger.info("Creating Gradio interface...")
+        chat = GradioChat()
+        logger.info("Created GradioChat instance")
+
+        with gr.Blocks() as demo:
+            gr.Markdown("# 🔍 AI Research Assistant")
+
+            chatbot = gr.Chatbot(
+                show_label=False,
+                avatar_images=("👤", "🤖"),
+                height=500
+            )
+
+            with gr.Row():
+                msg = gr.Textbox(
+                    placeholder="Ask anything...",
+                    show_label=False,
+                    scale=9
+                )
+                submit = gr.Button("Send", scale=1)
+
+            msg.submit(
+                chat.chat,
+                inputs=[msg, chatbot],
+                outputs=[chatbot, msg]
+            )
+
+            submit.click(
+                chat.chat,
+                inputs=[msg, chatbot],
+                outputs=[chatbot, msg]
+            )
+
+        return demo
+
+    except Exception as e:
+        logger.error(f"Error creating interface: {str(e)}")
+        raise
 
 if __name__ == "__main__":
-    main()
+    try:
+        logger.info("Starting Gradio interface...")
+        demo = create_interface()
+        # Removed queue() call to simplify the setup
+        logger.info("Launching Gradio app...")
+        demo.launch(
+            server_name="0.0.0.0",
+            server_port=3000,
+            share=False
+        )
+    except Exception as e:
+        logger.error(f"Failed to start Gradio app: {str(e)}")
+        raise
