@@ -28,12 +28,15 @@ class ChatInterface:
 
         print(f"Processing new message: {message[:50]}...")
         try:
-            # Format and add user message first
+            # Immediately show user message in UI
             user_message = format_message("user", message)
             st.session_state.messages = manage_chat_history(
                 st.session_state.messages,
                 user_message
             )
+
+            # Force a rerun to show the message immediately
+            st.rerun()
 
             # Format messages for API
             messages = [
@@ -102,13 +105,16 @@ class ChatInterface:
                     st.markdown(msg['content'])
                     st.markdown("---")
 
+        # Main chat area
         st.markdown("### Chat")
+
+        # Display chat messages
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
                 st.caption(f"Sent at {message['timestamp']}")
 
-        # Chat input
-        if message := st.chat_input("Type your message here..."):
+        # Process new messages
+        if message := st.chat_input("Type your message here...", key="chat_input"):
             print("Received new chat input")
             self.handle_message(message)
