@@ -4,7 +4,7 @@ from chat_interface import ChatInterface
 def main():
     # Page configuration
     st.set_page_config(
-        page_title="Grok Chat Interface",
+        page_title="Groq Chat Interface",
         page_icon="💬",
         layout="wide"
     )
@@ -14,10 +14,10 @@ def main():
     chat.initialize_session_state()
 
     # Header
-    st.title("Grok Chat Interface")
+    st.title("Groq-Powered Chat Interface")
     st.markdown("""
-    Welcome to the Grok-powered chat interface! You can:
-    - Chat with the AI using the message input
+    Welcome to the Groq-powered chat interface! You can:
+    - Chat with the AI (using deepseek-r1-distill-llama-70b model)
     - Search through message history using the search box
     - View search results and summaries
     """)
@@ -32,7 +32,7 @@ def main():
     }
     </style>
     """, unsafe_allow_html=True)
-    
+
     # Display the Gradio interface in Streamlit
     st.write(chat_interface)
 
