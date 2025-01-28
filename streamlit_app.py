@@ -27,42 +27,37 @@ def initialize_chat():
             logger.error(f"Failed to initialize GroqClient: {str(e)}")
             st.error(f"Error initializing chat system: {str(e)}")
 
-def format_reasoning(reasoning: str):
-    """Format the reasoning steps with proper styling."""
-    steps = []
-    current_step = ""
+def format_thinking(text):
+    """Format thinking content with proper styling."""
+    paragraphs = []
+    current_paragraph = ""
 
-    for line in reasoning.split('\n'):
+    for line in text.strip().split('\n'):
         line = line.strip()
         if line:
-            if re.match(r'^\d+\.', line):
-                if current_step:
-                    steps.append(current_step)
-                current_step = line
-            elif current_step:
-                current_step += " " + line
-            else:
-                current_step = line
+            current_paragraph = current_paragraph + " " + line if current_paragraph else line
+        elif current_paragraph:  # Empty line indicates paragraph break
+            paragraphs.append(current_paragraph)
+            current_paragraph = ""
 
-    if current_step:
-        steps.append(current_step)
+    if current_paragraph:  # Add the last paragraph
+        paragraphs.append(current_paragraph)
 
-    formatted_steps = "\n\n".join(steps)  # Add extra line break between steps
+    formatted_paragraphs = "\n\n".join(paragraphs)  # Double line break between paragraphs
 
-    return f"""
+    return """
         <div style='
-            background-color: #f0f2f6;
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin: 1rem 0;
-            font-family: monospace;
+            background-color: #f0f2f6; 
+            padding: 1.5rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+            font-family: monospace; 
             white-space: pre-wrap;
             line-height: 1.6;
-            color: #4a5568;
         '>
-            {formatted_steps}
+            {}
         </div>
-    """
+    """.format(formatted_paragraphs)
 
 def main():
     st.title("🤖 AI Research Assistant")
@@ -77,7 +72,7 @@ def main():
                 reasoning, answer = extract_reasoning(message["content"])
                 if reasoning:
                     st.markdown("### 🧠 Reasoning Process")
-                    st.markdown(format_reasoning(reasoning), unsafe_allow_html=True)
+                    st.markdown(format_thinking(reasoning), unsafe_allow_html=True)
                 st.markdown(answer)
             else:
                 st.markdown(message["content"])
@@ -109,7 +104,7 @@ def main():
 
                     # Show reasoning process
                     st.markdown("### 🧠 Reasoning Process")
-                    st.markdown(format_reasoning(reasoning), unsafe_allow_html=True)
+                    st.markdown(format_thinking(reasoning), unsafe_allow_html=True)
 
                 # Show final response
                 if answer.strip():

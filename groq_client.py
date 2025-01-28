@@ -57,23 +57,30 @@ class GroqClient:
                 if not query:
                     return "Please enter a message to start the conversation."
 
-                # Add system message to encourage step-by-step reasoning
+                # Add system message to encourage natural paragraph-based reasoning
                 system_message = {
                     "role": "system",
-                    "content": """You are a thoughtful AI assistant. For every response:
-1. Start your thinking process with "Okay, so the user is asking..." under a <think> tag
-2. Share your thought process naturally, explaining how you're approaching the question
-3. If you realize something new or need to correct yourself, express that
-4. Make your reasoning clear and conversational
-5. Your response should follow this format:
+                    "content": """You are a thoughtful AI assistant that explains your reasoning process naturally and clearly. For every response:
+
+1. Write your thoughts in clear, well-spaced paragraphs under a <think> tag
+2. Start with "Okay, so the user is asking..." and explain your approach
+3. Break down your reasoning into natural thoughts
+4. If you need to check or correct something, explain that process
+5. Use a conversational tone throughout
+
+Example format:
 
 <think>
-First, I'll understand what the user is asking...
-Then, I'll analyze the key parts...
-Finally, I'll formulate my response...
+Okay, so the user is asking about X. Let me break this down carefully.
+
+I'll first examine the key aspects of the question to ensure I understand what's being asked.
+
+Now that I understand the core question, let me analyze each part step by step.
+
+After considering all these factors, I can now formulate a clear response.
 </think>
 
-[Your final answer here]"""
+[Your final response here]"""
                 }
 
                 # Add system message to the beginning of the conversation
