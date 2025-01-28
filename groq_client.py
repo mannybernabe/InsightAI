@@ -25,15 +25,21 @@ class GroqClient:
     def web_search(self, query: str, num_results: int = 3) -> List[Dict]:
         """Perform a web search using DuckDuckGo."""
         try:
-            results = list(self.ddgs.text(query, max_results=num_results))
-            return [
-                {
-                    'title': result['title'],
-                    'link': result['link'],
-                    'snippet': result['body']
-                }
-                for result in results
-            ]
+            print(f"Performing web search for query: {query}")
+            results = []
+            for result in self.ddgs.text(query, max_results=num_results):
+                print(f"Found result: {result}")
+                if result and 'title' in result and 'link' in result and 'body' in result:
+                    results.append({
+                        'title': result['title'],
+                        'link': result['link'],
+                        'snippet': result['body']
+                    })
+
+            if not results:
+                print("No results found from DuckDuckGo search")
+            return results
+
         except Exception as e:
             print(f"Web search error: {str(e)}")
             return []
@@ -46,10 +52,15 @@ class GroqClient:
             last_message = messages[-1]["content"].lower().strip()
             if last_message.startswith("!search "):
                 search_query = last_message[8:].strip()
+                print(f"Processing web search request for: {search_query}")
+
+                if not search_query:
+                    return "Please provide a search query after the !search command."
+
                 search_results = self.web_search(search_query)
 
                 if not search_results:
-                    return "I couldn't find any relevant web search results for your query."
+                    return "I couldn't find any relevant web search results. Please try a different search query or rephrase your search terms."
 
                 # Format search results
                 results_text = "Here are the search results:\n\n"
@@ -65,7 +76,7 @@ class GroqClient:
             if not any(msg["role"] == "system" for msg in messages):
                 formatted_messages.append({
                     "role": "system",
-                    "content": "You are a helpful AI assistant. You can also perform web searches using the '!search' command."
+                    "content": "You are a helpful AI assistant. You can also perform web searches using the '!search' command followed by your query."
                 })
 
             formatted_messages.extend(messages)
