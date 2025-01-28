@@ -47,7 +47,7 @@ def format_reasoning(reasoning: str):
     if current_step:
         steps.append(current_step)
 
-    formatted_steps = "\n".join(steps)
+    formatted_steps = "\n\n".join(steps)  # Add extra line break between steps
 
     return f"""
         <div style='
@@ -56,7 +56,7 @@ def format_reasoning(reasoning: str):
             border-radius: 8px;
             margin: 1rem 0;
             font-family: monospace;
-            font-size: 0.9em;
+            white-space: pre-wrap;
             line-height: 1.6;
             color: #4a5568;
         '>

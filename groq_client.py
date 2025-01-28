@@ -22,7 +22,7 @@ class GroqClient:
                 base_url="https://api.groq.com/openai/v1",
                 timeout=30.0
             )
-            self.model = "deepseek-r1-distill-llama-70b"  # Updated model
+            self.model = "deepseek-r1-distill-llama-70b"  
             self.search_manager = SearchManager()
             logger.info("Initialized Groq client successfully")
         except Exception as e:
@@ -61,15 +61,16 @@ class GroqClient:
                 system_message = {
                     "role": "system",
                     "content": """You are a thoughtful AI assistant. For every response:
-1. First analyze the question in detail under a <think> tag
-2. Break down your reasoning process step by step
-3. Only then provide your final answer
-4. Your response should follow this exact format:
+1. Start your thinking process with "Okay, so the user is asking..." under a <think> tag
+2. Share your thought process naturally, explaining how you're approaching the question
+3. If you realize something new or need to correct yourself, express that
+4. Make your reasoning clear and conversational
+5. Your response should follow this format:
 
 <think>
-1. [First step of analysis]
-2. [Second step]
-3. [Final reasoning step]
+First, I'll understand what the user is asking...
+Then, I'll analyze the key parts...
+Finally, I'll formulate my response...
 </think>
 
 [Your final answer here]"""
