@@ -5,37 +5,60 @@ from utils import manage_chat_history, format_message, search_messages
 
 class ChatInterface:
     def __init__(self):
-        self.groq_client = GroqClient()
+        try:
+            self.groq_client = GroqClient()
+            print("GroqClient initialized successfully")
+        except Exception as e:
+            st.error(f"Failed to initialize GroqClient: {str(e)}")
+            print(f"GroqClient initialization error: {str(e)}")
+            raise
 
     def initialize_session_state(self):
         """Initialize Streamlit session state variables."""
         if "messages" not in st.session_state:
             st.session_state.messages = []
+            print("Initialized empty messages list in session state")
         if "search_results" not in st.session_state:
             st.session_state.search_results = []
 
     def handle_message(self, message: str) -> None:
         """Handle new message from user."""
+        if not message.strip():
+            return
+
+        print(f"Processing new message: {message[:50]}...")
         try:
+            # Format and add user message first
+            user_message = format_message("user", message)
+            st.session_state.messages = manage_chat_history(
+                st.session_state.messages,
+                user_message
+            )
+
             # Format messages for API
-            messages = [msg for msg in st.session_state.messages]
-            messages.append(format_message("user", message))
+            messages = [
+                {
+                    "role": msg["role"],
+                    "content": msg["content"]
+                } for msg in st.session_state.messages
+            ]
+
+            print(f"Sending {len(messages)} messages to Groq API")
 
             # Get response from Groq
             response = self.groq_client.generate_response(messages)
+            print(f"Received response from Groq: {response[:50]}...")
 
-            # Add messages to history
-            st.session_state.messages = manage_chat_history(
-                st.session_state.messages,
-                format_message("user", message)
-            )
+            # Add assistant response to history
             st.session_state.messages = manage_chat_history(
                 st.session_state.messages,
                 format_message("assistant", response)
             )
 
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            error_msg = f"Error processing message: {str(e)}"
+            print(f"Error in handle_message: {error_msg}")
+            st.error(error_msg)
 
     def handle_search(self, query: str) -> None:
         """Handle search request."""
@@ -43,18 +66,26 @@ class ChatInterface:
             st.session_state.search_results = []
             return
 
-        # Search messages
-        results = search_messages(st.session_state.messages, query)
+        try:
+            # Search messages
+            results = search_messages(st.session_state.messages, query)
+            print(f"Found {len(results)} search results for query: {query}")
 
-        # Generate summary if results found
-        if results:
-            try:
-                summary = self.groq_client.generate_search_response(query, results)
-                results.insert(0, format_message("system", f"Summary: {summary}"))
-            except Exception as e:
-                results.insert(0, format_message("system", f"Error generating summary: {str(e)}"))
+            # Generate summary if results found
+            if results:
+                try:
+                    summary = self.groq_client.generate_search_response(query, results)
+                    results.insert(0, format_message("system", f"Summary: {summary}"))
+                except Exception as e:
+                    print(f"Error generating search summary: {str(e)}")
+                    results.insert(0, format_message("system", f"Error generating summary: {str(e)}"))
 
-        st.session_state.search_results = results
+            st.session_state.search_results = results
+
+        except Exception as e:
+            error_msg = f"Error processing search: {str(e)}"
+            print(f"Error in handle_search: {error_msg}")
+            st.error(error_msg)
 
     def create_interface(self):
         """Creates the chat interface using Streamlit components."""
@@ -79,4 +110,5 @@ class ChatInterface:
 
         # Chat input
         if message := st.chat_input("Type your message here..."):
+            print("Received new chat input")
             self.handle_message(message)
