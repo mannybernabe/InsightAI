@@ -36,22 +36,19 @@ class GroqClient:
                 if not search_query:
                     return (
                         "Please provide a search query after the !search command.\n"
-                        "Example: !search latest AI developments"
+                        "Example: !search latest AI developments in 2024"
                     )
 
-                # Add delay between searches
-                time.sleep(3)
                 search_results = self.search_manager.search(search_query)
                 print(f"Search complete, found {len(search_results)} results")
 
                 if not search_results:
                     return (
                         "No results found. Please try:\n"
-                        "1. Using simpler search terms (1-2 keywords)\n"
-                        "2. Waiting a few minutes before searching again\n"
-                        "3. Removing special characters\n\n"
-                        "Example: Instead of '!search latest artificial intelligence developments 2024', "
-                        "try '!search AI news'"
+                        "1. Using different search terms\n"
+                        "2. Making your search more specific\n"
+                        "3. Checking for typos\n\n"
+                        "Example: Instead of '!search ai', try '!search artificial intelligence developments 2024'"
                     )
 
                 # Format search results
@@ -63,6 +60,14 @@ class GroqClient:
                     results_text += f"{i}. {result['title']}\n"
                     results_text += f"   {result['snippet']}\n"
                     results_text += f"   Link: {result['link']}\n\n"
+
+                # Add a search context summary if available
+                try:
+                    context = self.search_manager.get_search_context(search_query)
+                    if context:
+                        results_text = f"Summary: {context}\n\nDetailed Results:\n\n{results_text}"
+                except Exception as e:
+                    print(f"Error getting search context: {str(e)}")
 
                 return results_text
 

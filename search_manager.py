@@ -1,7 +1,9 @@
+import os
 import time
 import logging
-from typing import List, Dict, Optional
-from duckduckgo_search import DDGS
+from typing import List, Dict
+from tavily import TavilyClient
+from utils import format_message
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -9,13 +11,18 @@ logger = logging.getLogger(__name__)
 
 class SearchManager:
     def __init__(self):
-        self.last_request_time = 0
-        self.min_request_interval = 5.0  # Increased interval to reduce rate limiting
-        logger.info("SearchManager initialized")
+        try:
+            self.client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
+            self.last_request_time = 0
+            self.min_request_interval = 1.0  # Tavily has better rate limits
+            logger.info("SearchManager initialized with Tavily API")
+        except Exception as e:
+            logger.error(f"Failed to initialize Tavily client: {str(e)}")
+            raise
 
     def search(self, query: str, max_results: int = 3) -> List[Dict]:
         """
-        Perform a web search with proper error handling and rate limiting.
+        Perform a web search using Tavily API with proper error handling.
         """
         if not query.strip():
             logger.warning("Empty query provided")
@@ -30,93 +37,45 @@ class SearchManager:
                 logger.info(f"Rate limiting: waiting {wait_time:.2f} seconds")
                 time.sleep(wait_time)
 
-            try:
-                search_results = self._perform_search_with_retry(query, max_results)
-                if search_results:
-                    return search_results
+            logger.info(f"Performing Tavily search for query: {query}")
+            response = self.client.search(query)
+            self.last_request_time = time.time()
 
-                # If primary search fails, try alternative search
-                return self._perform_alternative_search(query)
-
-            except Exception as e:
-                logger.error(f"Search error: {str(e)}")
+            if not response or not response.get('results'):
                 return [{
-                    'title': 'Search Error',
+                    'title': 'No Results',
                     'link': '#',
-                    'snippet': ('Search service is temporarily unavailable. '
-                              'Please try again in a few minutes with a simpler query. '
-                              'Example: Instead of multiple words, try 1-2 key terms.')
+                    'snippet': 'No search results found. Please try with different search terms.'
                 }]
 
+            # Format results to match our expected structure
+            formatted_results = []
+            for result in response['results'][:max_results]:
+                formatted_results.append({
+                    'title': result.get('title', '').strip(),
+                    'link': result.get('url', '#').strip(),
+                    'snippet': result.get('content', '').strip()
+                })
+
+            logger.info(f"Successfully retrieved {len(formatted_results)} results")
+            return formatted_results
+
         except Exception as e:
-            logger.error(f"Fatal search error: {str(e)}")
+            error_msg = f"Search error: {str(e)}"
+            logger.error(error_msg)
             return [{
-                'title': 'System Error',
+                'title': 'Search Error',
                 'link': '#',
-                'snippet': 'An unexpected error occurred. Please try again later.'
+                'snippet': 'An error occurred while performing the search. Please try again later.'
             }]
 
-    def _perform_search_with_retry(self, query: str, max_results: int) -> List[Dict]:
-        """Perform search with retry mechanism"""
-        max_retries = 3
-        base_delay = 2
-
-        for attempt in range(max_retries):
-            try:
-                with DDGS() as ddgs:
-                    raw_results = []
-                    for result in ddgs.text(
-                        keywords=query,
-                        region='us-en',
-                        safesearch='off',
-                        max_results=max_results
-                    ):
-                        if isinstance(result, dict):
-                            raw_results.append(result)
-                            if len(raw_results) >= max_results:
-                                break
-
-                    self.last_request_time = time.time()
-                    return self._format_results(raw_results)
-
-            except Exception as e:
-                logger.warning(f"Search attempt {attempt + 1} failed: {str(e)}")
-                if attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)  # Exponential backoff
-                    time.sleep(delay)
-
-        return []
-
-    def _perform_alternative_search(self, query: str) -> List[Dict]:
-        """Fallback search method with simplified parameters"""
+    def get_search_context(self, query: str) -> str:
+        """
+        Get a summarized context for RAG applications.
+        """
         try:
-            with DDGS() as ddgs:
-                # Use more basic search parameters
-                results = list(ddgs.text(
-                    keywords=query,
-                    region='wt-wt',  # Worldwide results
-                    safesearch='off',
-                    timelimit=None  # No time limit
-                ))
-                return self._format_results(results)
+            context = self.client.get_search_context(query=query)
+            return context
         except Exception as e:
-            logger.error(f"Alternative search failed: {str(e)}")
-            return []
-
-    def _format_results(self, results: List[Dict]) -> List[Dict]:
-        """Format search results"""
-        formatted_results = []
-        for result in results:
-            if isinstance(result, dict):
-                title = result.get('title', '').strip()
-                link = result.get('link', '').strip()
-                snippet = result.get('body', '').strip()
-
-                if all([title, link, snippet]):
-                    formatted_results.append({
-                        'title': title,
-                        'link': link,
-                        'snippet': snippet
-                    })
-
-        return formatted_results
+            logger.error(f"Error getting search context: {str(e)}")
+            return "Unable to generate search context at this time."
