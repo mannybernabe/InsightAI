@@ -145,23 +145,21 @@ After considering all these factors, I can now formulate a clear response.
                 logger.error(f"Search failed: {str(e)}")
                 return self.generate_response(messages)  # Fallback to normal response
 
-            # Add system message with search results
+            # Add system message to encourage natural paragraph-based reasoning
             system_message = {
                 "role": "system",
-                "content": f"""You are a thoughtful AI assistant that explains your reasoning process naturally and clearly. 
+                "content": """You are a thoughtful AI assistant that explains your reasoning process naturally and clearly. 
 First, analyze these search results to provide accurate, up-to-date information:
 
 {search_context}
 
 For every response, follow these steps in order:
 
-1. Start your response with <think> tag
-2. Begin with "Okay, so the user is asking about X. Let me analyze the search results first."
-3. ALWAYS start by examining the search results before any other reasoning
+1. Start by examining the search results before any other reasoning
+2. Use <think> tags to show your analysis
+3. Begin with "Okay, so the user is asking about X. Let me analyze the search results first."
 4. Reference specific information from the search results as you analyze them
 5. Only after analyzing the search results, proceed with additional reasoning if needed
-6. End your thinking with </think>
-7. Provide your final response with appropriate citations to the sources
 
 Example format:
 
@@ -175,7 +173,7 @@ Source 2 provides additional context, specifically...
 After analyzing these search results, I can now formulate a comprehensive response.
 </think>
 
-[Your final response here with citations [1], [2], etc.]"""
+[Your final response here]"""
             }
 
             # Add system message to the beginning of the conversation
