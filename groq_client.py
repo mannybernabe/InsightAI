@@ -127,7 +127,10 @@ After considering all these factors, I can now formulate a clear response.
 
             # Perform web search with better error handling
             try:
+                logger.info(f"Performing Tavily search for query: {query}")
                 search_results = self.search_manager.search(query)
+                logger.info(f"Successfully retrieved {len(search_results) if search_results else 0} results")
+
                 if not search_results:
                     logger.warning("No search results found")
                     search_context = "No relevant search results found."
